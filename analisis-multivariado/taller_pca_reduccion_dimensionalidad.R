@@ -288,3 +288,38 @@ plot(um_vecinos[, 1], um_vecinos[, 2],
 # variables originales; la diferencia respecto de t-SNE está en que
 # UMAP intenta preservar mejor tanto la estructura local (vecindades)
 # como parte de la estructura global (distancia relativa entre grupos).
+
+# ------------------------------------------------------------
+# 14. Comparación de los cuatro métodos
+# ------------------------------------------------------------
+# Completar esta tabla con base en los resultados obtenidos arriba
+# (no son valores genéricos de teoría, sino lo observado con estos datos):
+#
+# Aspecto                          | PCA | Kernel PCA | t-SNE | UMAP
+# Lineal / no lineal                |     |            |       |
+# Estructura que enfatiza           |     |            |       |
+# Interpretación de los ejes        |     |            |       |
+# Relación con variables originales |     |            |       |
+# Patrones identificados            |     |            |       |
+# Agrupamientos                     |     |            |       |
+# Posibles atípicos                 |     |            |       |
+# Utilidad principal                |     |            |       |
+# Uso potencial en modelamiento     |     |            |       |
+# Transformación de nuevas obs.     |     |            |       |
+# Principales limitaciones          |     |            |       |
+
+# ------------------------------------------------------------
+# 15. Visualización frente a modelamiento
+# ------------------------------------------------------------
+# Discusión a desarrollar en la presentación:
+# Una representación bidimensional (p. ej. de t-SNE o UMAP) que muestra
+# grupos visualmente separados no garantiza que esas dos coordenadas sean
+# una buena transformación de entrada para un modelo predictivo: t-SNE y
+# UMAP distorsionan deliberadamente las distancias globales para privilegiar
+# la vecindad local, no son invertibles ni se definen mediante una función
+# fija aplicable a observaciones nuevas (a diferencia de PCA/Kernel PCA,
+# que sí permiten proyectar datos nuevos usando las cargas o el kernel ya
+# ajustado), y su resultado cambia con la semilla aleatoria y con
+# parámetros como perplexity o n_neighbors. Son herramientas de
+# visualización/exploración, no de generación de variables estables para
+# un pipeline de modelamiento.

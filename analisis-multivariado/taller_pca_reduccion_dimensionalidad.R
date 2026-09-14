@@ -58,3 +58,26 @@ datos <- data %>%
   select(all_of(vars_cuantitativas))
 
 dim(datos)  # filas remanentes tras el tratamiento de NA/outlier
+
+# ------------------------------------------------------------
+# 3. Exploración inicial
+# ------------------------------------------------------------
+str(datos)
+dim(datos)
+head(datos)
+summary(datos)
+colSums(is.na(datos))
+
+cor(datos)
+
+# Puntos a discutir en la presentación (a partir de la salida anterior):
+#  - diferencias de escala: altitude_mean_meters (cientos-miles de metros)
+#    frente a los puntajes sensoriales (rango ~6-10) y Moisture (%).
+#  - variables con mayor variabilidad: altitude_mean_meters y los conteos
+#    de defectos, frente a los puntajes de catación que son mucho más
+#    homogéneos entre lotes.
+#  - correlaciones importantes: los puntajes sensoriales están fuertemente
+#    correlacionados entre sí (Flavor-Aftertaste, Balance-Aftertaste, etc.),
+#    reflejando que evalúan dimensiones relacionadas de la experiencia de cata.
+#  - Category.One/Two.Defects y Moisture están poco correlacionadas con el
+#    bloque sensorial: aportan información distinta (calidad física del grano).

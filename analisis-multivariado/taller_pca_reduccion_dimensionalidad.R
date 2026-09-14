@@ -258,3 +258,33 @@ plot(tsne_perp5$Y,
      pch = 19, col = adjustcolor("seagreen", alpha.f = 0.5),
      xlab = "t-SNE 1", ylab = "t-SNE 2",
      main = "t-SNE - Café (perplexity = 5)")
+
+# ------------------------------------------------------------
+# 13. UMAP
+# ------------------------------------------------------------
+library(uwot)
+
+X <- scale(datos)
+
+set.seed(123)
+um <- umap(X)
+head(um)
+
+plot(um[, 1], um[, 2],
+     pch = 19, col = adjustcolor("mediumpurple", alpha.f = 0.5),
+     xlab = "UMAP1", ylab = "UMAP2",
+     main = "UMAP - Café (parámetros por defecto)")
+
+# Variación de un parámetro relevante (n_neighbors):
+set.seed(123)
+um_vecinos <- umap(X, n_neighbors = 5)
+plot(um_vecinos[, 1], um_vecinos[, 2],
+     pch = 19, col = adjustcolor("mediumpurple", alpha.f = 0.5),
+     xlab = "UMAP1", ylab = "UMAP2",
+     main = "UMAP - Café (n_neighbors = 5)")
+
+# Igual que en t-SNE, las coordenadas de UMAP no son componentes
+# principales ni tienen relación directa e interpretable con las
+# variables originales; la diferencia respecto de t-SNE está en que
+# UMAP intenta preservar mejor tanto la estructura local (vecindades)
+# como parte de la estructura global (distancia relativa entre grupos).

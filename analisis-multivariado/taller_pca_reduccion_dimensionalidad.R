@@ -139,3 +139,47 @@ screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
 #    originales (ver sección 7).
 # El número final de componentes a conservar (k) debe fijarse con base en
 # estos criterios y no de forma arbitraria.
+
+# ------------------------------------------------------------
+# 7. Interpretación de las componentes
+# ------------------------------------------------------------
+pca$rotation
+
+# Para cada componente conservada, identificar en pca$rotation:
+#  - variables con mayor carga absoluta (mayor peso);
+#  - variables con cargas del mismo signo (comportamiento similar);
+#  - variables con cargas de signo opuesto (relación inversa);
+#  - propuesta de nombre/significado del componente en el contexto cafetero
+#    (p. ej., un componente dominado por Aroma/Flavor/Aftertaste/Balance
+#    puede leerse como un eje general de "calidad sensorial"; un componente
+#    dominado por Category.One/Two.Defects y Moisture puede leerse como un
+#    eje de "calidad física del grano").
+
+# ------------------------------------------------------------
+# 8. Matriz de gráficos de dispersión de las componentes
+# ------------------------------------------------------------
+k <- 4  # ajustar según la decisión tomada en la sección 6
+
+pca$x[1:6, 1:k]
+
+pairs(pca$x[, 1:k],
+      main = "Matriz de dispersión - Componentes principales (café)",
+      pch = 19, col = adjustcolor("steelblue", alpha.f = 0.4))
+
+# Revisar si aparecen agrupamientos (p. ej., por Processing.Method o
+# Country.of.Origin, no usados como variables activas del PCA pero
+# disponibles en `data` para colorear los puntos si se desea profundizar),
+# patrones no lineales, separación entre observaciones y posibles atípicos
+# multivariados. Analizar si estos patrones se repiten entre distintos
+# pares de componentes o son específicos de un par en particular.
+
+# ------------------------------------------------------------
+# 9. Biplot
+# ------------------------------------------------------------
+biplot(pca, choices = c(1, 2), cex = 0.6,
+       main = "Biplot PCA - Componentes 1 y 2 (café)")
+
+# El biplot añade, sobre la matriz de dispersión, la dirección y magnitud
+# de cada variable original en el espacio de componentes: permite ver
+# simultáneamente qué variables "empujan" hacia dónde a las observaciones,
+# información que la matriz de dispersión (solo puntos) no muestra por sí sola.

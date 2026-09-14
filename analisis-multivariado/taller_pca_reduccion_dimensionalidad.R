@@ -230,3 +230,31 @@ kp_sigma_alto <- kpca(~., data = datos_esc,
 pairs(rotated(kp_sigma_alto)[, 1:5],
       main = "Kernel PCA con sigma = 1 (café)",
       pch = 19, col = adjustcolor("firebrick", alpha.f = 0.4))
+
+# ------------------------------------------------------------
+# 12. t-SNE
+# ------------------------------------------------------------
+library(Rtsne)
+
+X <- scale(datos)
+
+set.seed(123)
+tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
+
+plot(tsne$Y,
+     pch = 19, col = adjustcolor("seagreen", alpha.f = 0.5),
+     xlab = "t-SNE 1", ylab = "t-SNE 2",
+     main = "t-SNE - Café (perplexity = 30)")
+
+# Recordar: los ejes de t-SNE no son componentes principales y no tienen
+# interpretación directa en términos de las variables originales; lo que
+# importa es la vecindad relativa entre observaciones, no la posición
+# absoluta ni la distancia entre grupos alejados.
+
+# Variación de un parámetro relevante (perplexity):
+set.seed(123)
+tsne_perp5 <- Rtsne(X, dims = 2, perplexity = 5, theta = 0.5)
+plot(tsne_perp5$Y,
+     pch = 19, col = adjustcolor("seagreen", alpha.f = 0.5),
+     xlab = "t-SNE 1", ylab = "t-SNE 2",
+     main = "t-SNE - Café (perplexity = 5)")

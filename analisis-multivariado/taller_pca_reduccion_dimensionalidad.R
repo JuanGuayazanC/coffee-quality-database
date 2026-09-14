@@ -81,3 +81,34 @@ cor(datos)
 #    reflejando que evalúan dimensiones relacionadas de la experiencia de cata.
 #  - Category.One/Two.Defects y Moisture están poco correlacionadas con el
 #    bloque sensorial: aportan información distinta (calidad física del grano).
+
+# ------------------------------------------------------------
+# 4. Matriz de varianzas-covarianzas y medidas de variabilidad
+# ------------------------------------------------------------
+S <- cov(datos)
+S
+
+# 4.1. Varianza total
+varianza_total <- sum(diag(S))
+varianza_total
+# Dominada casi por completo por altitude_mean_meters, dado que su varianza
+# está en una escala de miles de metros^2 frente a puntajes en escala 0-10.
+
+# 4.2. Varianza generalizada
+varianza_generalizada <- det(S)
+varianza_generalizada
+# Mide la variabilidad conjunta (volumen del elipsoide de dispersión).
+# Un valor cercano a cero indicaría multicolinealidad severa o redundancia
+# casi perfecta entre variables (lo que aquí no ocurre de forma extrema
+# tras excluir Total.Cup.Points, pero sí hay colinealidad moderada-alta
+# entre los puntajes sensoriales).
+
+p <- ncol(datos)
+varianza_total_media <- varianza_total / p
+varianza_generalizada_media <- varianza_generalizada^(1 / p)
+varianza_total_media
+varianza_generalizada_media
+# Las versiones "promedio" (dividiendo por p o tomando la raíz p-ésima)
+# permiten comparar variabilidad entre conjuntos de variables de distinto
+# tamaño p, cosa que la varianza total y el determinante crudo no permiten
+# al depender de la dimensión y de las unidades de cada variable.

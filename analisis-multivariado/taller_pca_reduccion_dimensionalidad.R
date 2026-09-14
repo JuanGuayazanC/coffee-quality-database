@@ -112,3 +112,30 @@ varianza_generalizada_media
 # permiten comparar variabilidad entre conjuntos de variables de distinto
 # tamaño p, cosa que la varianza total y el determinante crudo no permiten
 # al depender de la dimensión y de las unidades de cada variable.
+
+# ------------------------------------------------------------
+# 5. Análisis de Componentes Principales
+# ------------------------------------------------------------
+# Decisión: ESTANDARIZAR. Las variables tienen unidades y escalas muy
+# distintas (metros vs. puntaje 0-10 vs. porcentaje vs. conteo de defectos).
+# Sin estandarizar, altitude_mean_meters dominaría por completo la varianza
+# total y, por tanto, el primer componente, ocultando la estructura de los
+# puntajes sensoriales que es el objeto real de interés del análisis.
+
+pca <- prcomp(datos, center = TRUE, scale. = TRUE)
+
+# ------------------------------------------------------------
+# 6. Selección del número de componentes
+# ------------------------------------------------------------
+summary(pca)
+pca$sdev^2
+
+screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
+
+# Criterio de decisión (ajustar la lectura una vez ejecutado en clase):
+#  - varianza acumulada explicada por las primeras 3-4 componentes;
+#  - codo visible en el screeplot;
+#  - interpretabilidad de cada componente en términos de las variables
+#    originales (ver sección 7).
+# El número final de componentes a conservar (k) debe fijarse con base en
+# estos criterios y no de forma arbitraria.

@@ -183,3 +183,50 @@ biplot(pca, choices = c(1, 2), cex = 0.6,
 # de cada variable original en el espacio de componentes: permite ver
 # simultáneamente qué variables "empujan" hacia dónde a las observaciones,
 # información que la matriz de dispersión (solo puntos) no muestra por sí sola.
+
+# ------------------------------------------------------------
+# 10. Kernel PCA
+# ------------------------------------------------------------
+library(kernlab)
+
+datos_esc <- as.data.frame(scale(datos))
+
+kp <- kpca(~., data = datos_esc,
+           kernel = "rbfdot",
+           kpar = list(sigma = 0.05),
+           features = 5)
+
+eig <- kp@eig
+var_exp <- eig / sum(eig)
+round(var_exp, 3)
+round(cumsum(var_exp), 3)
+
+# El kernel RBF (gaussiano) se eligió porque permite capturar relaciones
+# no lineales suaves entre los puntajes de catación sin imponer una forma
+# funcional específica; sigma controla qué tan "local" es la noción de
+# similitud entre lotes de café (sigma pequeño = vecindades más estrechas).
+# A diferencia de PCA, las coordenadas de Kernel PCA no son combinaciones
+# lineales directas de las variables originales, por lo que no se
+# interpretan mediante cargas (rotation) sino de forma relacional
+# (qué observaciones quedan cerca/lejos en el espacio transformado).
+
+# ------------------------------------------------------------
+# 11. Matriz de dispersión de Kernel PCA
+# ------------------------------------------------------------
+scores_kpca <- rotated(kp)
+
+pairs(scores_kpca[, 1:5],
+      main = "Matriz de dispersión - Kernel PCA (café)",
+      pch = 19, col = adjustcolor("darkorange", alpha.f = 0.4))
+
+# Comparar contra la matriz de dispersión de PCA (sección 8): ¿aparecen
+# agrupamientos o curvaturas que PCA lineal no mostraba?
+
+# Variación de un parámetro relevante (sigma) para ver el efecto:
+kp_sigma_alto <- kpca(~., data = datos_esc,
+                       kernel = "rbfdot",
+                       kpar = list(sigma = 1),
+                       features = 5)
+pairs(rotated(kp_sigma_alto)[, 1:5],
+      main = "Kernel PCA con sigma = 1 (café)",
+      pch = 19, col = adjustcolor("firebrick", alpha.f = 0.4))

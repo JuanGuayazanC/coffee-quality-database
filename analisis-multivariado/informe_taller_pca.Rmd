@@ -1,0 +1,418 @@
+---
+title: "Taller de Análisis Multivariado"
+subtitle: "PCA y métodos alternativos de reducción de dimensionalidad — Coffee Quality Institute"
+author: "Juan Sebastian"
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                       fig.align = "center", fig.width = 8, fig.height = 7)
+```
+
+> **Nota para el lector:** este documento es un **informe de previsualización**, pensado para revisar con el profesor antes de construir las diapositivas finales. Contiene todo el código, las salidas reales obtenidas al ejecutarlo, y una interpretación preliminar de cada resultado. Las secciones siguen el orden del taller.
+
+---
+
+# 1. Objetivo
+
+Se aplican y comparan cuatro métodos de reducción de dimensionalidad — **PCA**, **Kernel PCA**, **t-SNE** y **UMAP** — sobre un conjunto de datos real, con el fin de responder:
+
+> ¿Qué información de los datos intenta preservar cada método y qué se puede interpretar a partir de la representación obtenida?
+
+---
+
+# 2. Selección del conjunto de datos
+
+**Fuente:** [Coffee Quality Institute](https://database.coffeeinstitute.org/), vía el repositorio [jldbc/coffee-quality-database](https://github.com/jldbc/coffee-quality-database) (archivo `data/arabica_data_cleaned.csv`).
+
+**Observaciones:** 1311 lotes de café arábica evaluados por catadores certificados (Q Graders).
+
+**Variables cuantitativas utilizadas:**
+
+| Variable | Significado | Unidad |
+|---|---|---|
+| Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Uniformity, Clean.Cup, Sweetness, Cupper.Points | Puntajes sensoriales de catación | Escala 0–10 |
+| Moisture | Humedad del grano | % |
+| Category.One.Defects | Defectos primarios (graves) | conteo |
+| Category.Two.Defects | Defectos secundarios (leves) | conteo |
+| altitude_mean_meters | Altitud media de la finca | metros |
+
+**Justificación de la selección:** son las únicas variables genuinamente cuantitativas y continuas del dataset. El resto de columnas son identificadores, certificaciones o metadatos administrativos (`Owner`, `Farm.Name`, `Lot.Number`, `Certification.Body`, etc.) sin contenido analítico para un PCA.
+
+Se **excluye `Total.Cup.Points`** del conjunto activo porque es, por construcción, la suma de los diez puntajes sensoriales: incluirla generaría colinealidad perfecta en vez de información nueva.
+
+**Datos faltantes y tratamiento:** el único NA relevante está en `altitude_mean_meters` (227 filas). Además, esa variable tiene un valor corrupto (~190.000 m, imposible para una finca cafetera). Se filtra a un rango plausible (0–3000 msnm) y se eliminan los NA restantes.
+
+```{r datos}
+library(dplyr)
+
+data <- read.csv("../data/arabica_data_cleaned.csv")
+
+vars_cuantitativas <- c("Aroma", "Flavor", "Aftertaste", "Acidity", "Body",
+                         "Balance", "Uniformity", "Clean.Cup", "Sweetness",
+                         "Cupper.Points", "Moisture", "Category.One.Defects",
+                         "Category.Two.Defects", "altitude_mean_meters")
+
+colSums(is.na(data[, vars_cuantitativas]))
+summary(data$altitude_mean_meters)
+
+data_f <- data %>%
+  filter(is.na(altitude_mean_meters) | (altitude_mean_meters > 0 & altitude_mean_meters <= 3000)) %>%
+  filter(!is.na(altitude_mean_meters))
+
+datos <- data_f %>% select(all_of(vars_cuantitativas))
+
+dim(datos)
+```
+
+Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin datos faltantes.
+
+---
+
+# 3. Exploración inicial
+
+```{r exploracion}
+str(datos)
+head(datos)
+summary(datos)
+colSums(is.na(datos))
+cor(datos)
+```
+
+**Hallazgos principales:**
+
+- **Diferencias de escala fuertes:** `altitude_mean_meters` está en cientos-miles de metros, los puntajes sensoriales en 0–10, `Moisture` en proporción (0–0.2) y los defectos son conteos (0–47). Sin estandarizar, la altitud dominaría cualquier análisis basado en varianza.
+- **Mayor variabilidad:** `altitude_mean_meters` y `Category.Two.Defects`/`Category.One.Defects`; los puntajes sensoriales son mucho más homogéneos (la mayoría de lotes puntúa entre 7 y 8.5).
+- **Correlaciones altas** entre los puntajes sensoriales (p. ej. Flavor–Aftertaste ≈ 0.90, Flavor–Balance ≈ 0.82, Aftertaste–Balance ≈ 0.83): evalúan dimensiones relacionadas de la experiencia de cata.
+- `Category.One/Two.Defects` y `Moisture` están **débil o negativamente correlacionadas** con el bloque sensorial: aportan información distinta (calidad física del grano, no sabor).
+- `altitude_mean_meters` tiene correlación baja-positiva (~0.15–0.20) con casi todos los puntajes sensoriales.
+
+---
+
+# 4. Matriz de varianzas-covarianzas y medidas de variabilidad
+
+```{r covarianza}
+S <- cov(datos)
+round(S, 3)
+```
+
+## 4.1. Varianza total
+
+```{r var-total}
+varianza_total <- sum(diag(S))
+varianza_total
+```
+
+La varianza total (**≈ 174 690**) está dominada casi por completo por `altitude_mean_meters` (varianza ≈ 174 656, según la diagonal de `S`), simplemente porque su escala (metros) es órdenes de magnitud mayor que la de los puntajes sensoriales (escala 0–10). Esto **no** significa que la altitud sea la variable más "importante": es un artefacto de unidades, y es justamente la razón por la que el PCA se hará sobre datos estandarizados (sección 5).
+
+## 4.2. Varianza generalizada
+
+```{r var-generalizada}
+varianza_generalizada <- det(S)
+varianza_generalizada
+```
+
+El determinante de `S` es **≈ 2.88 × 10⁻⁷**, un número extremadamente pequeño. Esto **no** indica multicolinealidad extrema en términos relativos: es otro artefacto de escala, porque el determinante es un producto de varianzas y covarianzas en unidades muy distintas (metros² frente a escalas 0–10²), lo que aplasta el valor. Por eso la comparación cruda entre varianza total y generalizada no es directamente interpretable aquí sin normalizar.
+
+```{r var-promedio}
+p <- ncol(datos)
+varianza_total_media <- varianza_total / p
+varianza_generalizada_media <- varianza_generalizada^(1 / p)
+varianza_total_media
+varianza_generalizada_media
+```
+
+Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son mejores para comparar variabilidad porque corrigen por la dimensión y ponen ambas medidas en una escala "por variable", independiente de cuántas variables se incluyan. Aun así, siguen siendo sensibles a las unidades originales — el diagnóstico real de escala se resuelve estandarizando antes del PCA.
+
+---
+
+# 5. Análisis de Componentes Principales
+
+**Decisión: ESTANDARIZAR.** Las variables tienen unidades y escalas muy distintas (metros vs. puntaje 0–10 vs. porcentaje vs. conteo de defectos). Sin estandarizar, `altitude_mean_meters` dominaría por completo la varianza total y, por tanto, el primer componente, ocultando la estructura de los puntajes sensoriales que es el objeto real de interés del análisis.
+
+```{r pca}
+pca <- prcomp(datos, center = TRUE, scale. = TRUE)
+```
+
+---
+
+# 6. Selección del número de componentes
+
+```{r resumen-pca}
+summary(pca)
+pca$sdev^2
+```
+
+```{r screeplot}
+screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
+```
+
+**Decisión: se conservan k = 4 componentes.**
+
+Justificación:
+
+- El gráfico de codo muestra una caída muy pronunciada entre PC1 y PC2 (de varianza ≈ 6.68 a ≈ 1.40), y luego un descenso mucho más gradual — el "codo" técnico está en PC2, pero solo PC1–PC2 explican el 57.7% de la varianza, una fracción algo baja para representar 14 variables originales.
+- Con k = 4 se acumula **74.6%** de la varianza (PC1 = 47.7%, PC2 = 10.0%, PC3 = 9.6%, PC4 = 7.3%).
+- Cada una de esas cuatro componentes tiene una **interpretación clara y distinta** en el contexto cafetero (ver sección 7): calidad sensorial general, defectos físicos, uniformidad/dulzura, y altitud/humedad. A partir de PC5 la varianza explicada individual cae por debajo de 6% y las cargas dejan de tener un patrón fácil de nombrar.
+- El objetivo del análisis es exploratorio/interpretativo, no una reducción agresiva para un modelo predictivo, por lo que priorizamos interpretabilidad sobre minimizar k.
+
+---
+
+# 7. Interpretación de las componentes
+
+```{r cargas}
+round(pca$rotation[, 1:4], 3)
+```
+
+- **PC1 (47.7% de la varianza) — "calidad sensorial general":** todas las variables de catación (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) cargan con signo negativo y magnitud similar (entre −0.33 y −0.36), y en menor medida Uniformity, Clean.Cup y Sweetness (≈ −0.22 a −0.24). No hay variables en sentido opuesto: PC1 es esencialmente un eje de "calidad global" del lote — lotes con mejor puntaje en todos los atributos sensoriales tienen valores muy negativos en PC1 (el signo es arbitrario, lo relevante es que se mueven todas juntas).
+- **PC2 (10.0%) — "defectos físicos / humedad":** dominado por `Category.One.Defects` (−0.66) y `Category.Two.Defects` (−0.66), con `Moisture` acompañando (−0.26). Es un eje casi ortogonal al anterior: la calidad física del grano (defectos, humedad) varía de forma prácticamente independiente de la calidad sensorial.
+- **PC3 (9.6%) — "uniformidad/dulzura vs. atributos de sabor":** `Uniformity` (−0.46), `Clean.Cup` (−0.48) y `Sweetness` (−0.53) tienen cargas altas y del mismo signo, mientras que Aroma/Flavor/Acidity/Body/Balance tienen cargas positivas moderadas (~0.10–0.14) — sentido opuesto. Sugiere que, controlando por PC1, hay lotes que destacan más en "limpieza y dulzura de taza" que en "intensidad de sabor", y viceversa.
+- **PC4 (7.3%) — "altitud/humedad":** dominado casi en solitario por `altitude_mean_meters` (0.79) y `Moisture` (0.55), con el resto de variables con cargas cercanas a cero. Es un eje de metadatos de la finca/proceso, desconectado de la calidad sensorial.
+
+---
+
+# 8. Matriz de gráficos de dispersión de las componentes
+
+```{r pairs-pca, fig.height=8}
+k <- 4
+pairs(pca$x[, 1:k],
+      main = "Matriz de dispersión - Componentes principales (café)",
+      pch = 19, col = adjustcolor("steelblue", alpha.f = 0.4))
+```
+
+No se observan agrupamientos claros: la gran mayoría de las observaciones forma **una sola nube densa y continua**, sin separación en subgrupos. Esto es consistente con que el café arábica de este dataset es relativamente homogéneo en composición (predominan lotes de calidad "especialidad").
+
+Sí se identifican **observaciones atípicas** muy marcadas, que se repiten en varios pares de componentes:
+
+```{r outliers}
+idx_pc1 <- order(pca$x[, 1], decreasing = TRUE)[1:2]
+idx_pc2 <- order(pca$x[, 2])[1:2]
+idx_pc4 <- order(pca$x[, 4])[1:2]
+datos[unique(c(idx_pc1, idx_pc2, idx_pc4)), ]
+```
+
+- Un lote con **todos los puntajes sensoriales en cero** (Aroma = Flavor = ... = 0): un error evidente de captura de datos, no una observación real de café. Aparece como el punto más extremo en PC1.
+- Dos lotes con **31–47 defectos** (Category.One/Two.Defects), muy por encima del resto (mediana de Category.Two.Defects = 2): los outliers más extremos en PC2.
+- Lotes con **altitud = 1 metro**: claramente un valor de captura erróneo o un placeholder (ninguna finca de café real está a 1 msnm), visibles como atípicos en PC4.
+
+Estos patrones se mantienen entre distintos pares de componentes que involucran a PC1, PC2 o PC4, lo que confirma que son atípicos multivariados genuinos y no artefactos de una sola proyección — y refuerzan que el "tratamiento de datos" de la sección 2 podría profundizarse filtrando también estos casos evidentes de error de captura.
+
+---
+
+# 9. Biplot
+
+```{r biplot, fig.height=8}
+biplot(pca, choices = c(1, 2), cex = 0.6,
+       main = "Biplot PCA - Componentes 1 y 2 (café)")
+```
+
+El biplot confirma visualmente la interpretación de la sección 7: las flechas de los diez puntajes sensoriales apuntan casi todas en la misma dirección (hacia PC1 negativo), formando un haz compacto — coherente con que todas cargan con el mismo signo y magnitud similar en PC1. Las flechas de `Category.One.Defects` y `Category.Two.Defects` apuntan en una dirección casi perpendicular (hacia PC2 negativo), separadas del haz sensorial. El lote con 31/47 defectos (fila 1014) aparece exactamente en esa dirección, muy alejado del resto.
+
+Lo que el biplot añade frente a la matriz de dispersión es la **dirección y magnitud de cada variable original superpuesta sobre las observaciones**: permite ver simultáneamente qué variables "empujan" a un lote hacia una zona del plano, información que la matriz de dispersión (solo puntos) no muestra por sí sola.
+
+---
+
+# 10. Kernel PCA
+
+**Antes de aplicarlo:**
+
+- **Objetivo:** capturar estructura **no lineal** proyectando los datos a un espacio de mayor dimensión (vía un kernel) antes de aplicar PCA, sin calcular explícitamente esa transformación (truco del kernel).
+- **Diferencia con PCA convencional:** PCA busca combinaciones *lineales* de las variables originales que maximizan varianza; Kernel PCA busca esas combinaciones en un espacio transformado no lineal, por lo que puede separar estructuras que PCA lineal no distingue (curvas, anillos, clústeres no separables linealmente).
+- **Kernel usado:** RBF (gaussiano), `kernel = "rbfdot"`, por ser el más estándar para capturar relaciones no lineales suaves sin imponer una forma funcional específica.
+- **Parámetro principal:** `sigma`, que controla qué tan "local" es la noción de similitud entre lotes (sigma pequeño = vecindades más estrechas / más no linealidad capturada; sigma grande → el comportamiento se acerca más al de un kernel lineal).
+- **Interpretación de las coordenadas:** a diferencia de PCA, no son combinaciones lineales directas de las variables originales, por lo que no se leen mediante cargas (`rotation`) sino de forma relacional — qué observaciones quedan cerca o lejos en el espacio transformado.
+
+```{r kpca}
+library(kernlab)
+
+datos_esc <- as.data.frame(scale(datos))
+
+kp <- kpca(~., data = datos_esc,
+           kernel = "rbfdot",
+           kpar = list(sigma = 0.05),
+           features = 5)
+
+eig <- kp@eig
+var_exp <- eig / sum(eig)
+round(var_exp, 3)
+round(cumsum(var_exp), 3)
+```
+
+Con `sigma = 0.05` y 5 features, la variabilidad se reparte de forma más uniforme que en PCA lineal (36.6%, 25.9%, 14.9%, 14.5%, 8.0%), sin un primer componente tan dominante como el PC1 lineal (47.7%). **Nota:** estos porcentajes están calculados solo sobre los 5 valores propios retenidos (no sobre el total del espacio de kernel), por lo que no son directamente comparables en magnitud absoluta con la varianza acumulada de PCA — sí lo son en términos de forma relativa entre componentes.
+
+---
+
+# 11. Matriz de dispersión de Kernel PCA
+
+```{r pairs-kpca, fig.height=8}
+scores_kpca <- rotated(kp)
+pairs(scores_kpca[, 1:5],
+      main = "Matriz de dispersión - Kernel PCA (café, sigma = 0.05)",
+      pch = 19, col = adjustcolor("darkorange", alpha.f = 0.4))
+```
+
+**¿Qué patrones aparecen con Kernel PCA que no eran evidentes mediante PCA?** El panel de las dos primeras componentes de Kernel PCA muestra una **estructura en forma de anillo/herradura** (horseshoe), completamente ausente en la matriz de dispersión lineal de PCA (sección 8), donde solo había una nube elíptica. Este tipo de patrón circular es un efecto no lineal característico de aplicar un kernel RBF de sigma pequeño sobre datos que, en el fondo, varían principalmente a lo largo de un solo gradiente continuo (aquí, el gradiente de calidad sensorial de PC1): el kernel "curva" ese gradiente en un arco.
+
+**Variación de un parámetro (sigma):**
+
+```{r kpca-sigma-alto, fig.height=8}
+kp_sigma_alto <- kpca(~., data = datos_esc,
+                       kernel = "rbfdot",
+                       kpar = list(sigma = 1),
+                       features = 5)
+pairs(rotated(kp_sigma_alto)[, 1:5],
+      main = "Kernel PCA con sigma = 1 (café)",
+      pch = 19, col = adjustcolor("firebrick", alpha.f = 0.4))
+```
+
+Al aumentar `sigma` a 1 (vecindades más "anchas", similitud menos local), el anillo desaparece y aparecen en su lugar **patrones radiales en forma de estrella/V** muy marcados entre varios pares de componentes. Esto ilustra de forma muy directa que Kernel PCA es altamente sensible a la elección de `sigma`: no hay una única "forma verdadera" de los datos en este espacio, sino una familia de representaciones que dependen del parámetro elegido — un punto importante para la discusión crítica del taller.
+
+---
+
+# 12. t-SNE
+
+**Antes de aplicarlo:**
+
+- **Objetivo:** preservar las relaciones de **vecindad local** (qué observaciones son "vecinas" de cuáles), sacrificando la fidelidad de las distancias globales entre grupos alejados.
+- **Parámetros principales:** `perplexity` (tamaño efectivo de vecindario que se intenta preservar; regla práctica para ~1000 muestras: 20–50), `theta` (aproximación de Barnes-Hut, trade-off velocidad/precisión).
+- **Interpretación de las coordenadas:** no son componentes principales; los ejes no tienen significado por sí mismos y las distancias absolutas no son interpretables, solo la vecindad relativa.
+- **Limitaciones:** no es determinista salvo fijando semilla, no se puede proyectar una observación nueva sin reentrenar, y es sensible a `perplexity`.
+
+```{r tsne}
+library(Rtsne)
+
+X <- scale(datos)
+
+set.seed(123)
+tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
+
+plot(tsne$Y,
+     pch = 19, col = adjustcolor("seagreen", alpha.f = 0.5),
+     xlab = "t-SNE 1", ylab = "t-SNE 2",
+     main = "t-SNE - Café (perplexity = 30)")
+```
+
+Con `perplexity = 30` se obtiene una **nube continua**, sin separación clara en clústeres discretos — consistente con lo observado en PCA: los lotes de café arábica de este dataset forman un continuo de calidad más que grupos naturales bien definidos. Se aprecia una leve concentración adicional en la parte superior izquierda, pero sin un vacío claro que la separe del resto.
+
+**Variación de un parámetro (perplexity):**
+
+```{r tsne-perp5}
+set.seed(123)
+tsne_perp5 <- Rtsne(X, dims = 2, perplexity = 5, theta = 0.5)
+plot(tsne_perp5$Y,
+     pch = 19, col = adjustcolor("seagreen", alpha.f = 0.5),
+     xlab = "t-SNE 1", ylab = "t-SNE 2",
+     main = "t-SNE - Café (perplexity = 5)")
+```
+
+Con `perplexity = 5` (vecindarios mucho más pequeños) la nube se fragmenta en múltiples "hebras" y filamentos alargados, en vez de la forma más compacta de `perplexity = 30`. Esto ilustra bien la limitación de t-SNE: con vecindarios muy pequeños, el algoritmo sobreajusta ruido local y genera estructura aparente (filamentos) que no necesariamente refleja agrupamientos reales en los datos originales.
+
+---
+
+# 13. UMAP
+
+**Antes de aplicarlo:**
+
+- **Objetivo:** similar a t-SNE (preservar vecindades locales), pero con un fundamento teórico distinto (topología algebraica) que en la práctica tiende a preservar mejor parte de la **estructura global** (distancia relativa entre grupos), además de ser más rápido.
+- **Parámetros principales:** `n_neighbors` (tamaño de vecindario, análogo a `perplexity`), `min_dist` (qué tan compactos quedan los puntos dentro de un mismo grupo).
+- **Interpretación de las coordenadas:** tampoco son componentes principales ni tienen relación directa con las variables originales.
+- **Diferencias respecto de t-SNE:** UMAP suele preservar mejor las distancias relativas entre clústeres distintos (no solo la vecindad local) y es determinista de forma más estable entre corridas con la misma semilla.
+
+```{r umap}
+library(uwot)
+
+X <- scale(datos)
+
+set.seed(123)
+um <- umap(X)
+
+plot(um[, 1], um[, 2],
+     pch = 19, col = adjustcolor("mediumpurple", alpha.f = 0.5),
+     xlab = "UMAP1", ylab = "UMAP2",
+     main = "UMAP - Café (parámetros por defecto)")
+```
+
+A diferencia de PCA, Kernel PCA y t-SNE, **UMAP separa con claridad dos grupos**: una nube principal alargada y un grupo secundario, más pequeño y compacto, claramente distanciado del resto (parte inferior del gráfico).
+
+```{r umap-cluster-investigacion}
+cluster_bajo <- um[, 2] < -5
+sum(cluster_bajo)
+
+comp <- sapply(datos, function(v) c(cluster = mean(v[cluster_bajo]), resto = mean(v[!cluster_bajo])))
+round(t(comp), 3)
+```
+
+Investigando qué distingue a ese grupo de 197 lotes: la diferencia más marcada es `Moisture`, prácticamente **cero** en el grupo separado (media 0.004) frente a 11.3% en el resto. Al revisar la distribución completa, **174 de 1070 lotes tienen `Moisture` exactamente igual a 0** — un valor fisicamente implausible para granos de café (que normalmente retienen 9–13% de humedad), lo que indica que probablemente se trata de **mediciones faltantes codificadas como cero** en vez de un NA real, no de café realmente seco al 0%. UMAP, al ser sensible a la estructura de vecindades, aísla este subconjunto en una región propia del espacio de baja dimensión porque, en la escala estandarizada, su distancia al resto de observaciones en la variable `Moisture` es artificialmente grande.
+
+**Variación de un parámetro (`n_neighbors`):**
+
+```{r umap-nn5}
+set.seed(123)
+um_vecinos <- umap(X, n_neighbors = 5)
+plot(um_vecinos[, 1], um_vecinos[, 2],
+     pch = 19, col = adjustcolor("mediumpurple", alpha.f = 0.5),
+     xlab = "UMAP1", ylab = "UMAP2",
+     main = "UMAP - Café (n_neighbors = 5)")
+```
+
+Con `n_neighbors = 5` (vecindarios más pequeños) el grupo con `Moisture = 0` **se sigue separando claramente** (ahora en la esquina superior derecha), y además la nube principal se fragmenta en más filamentos internos — el hallazgo del subgrupo de humedad cero es robusto al parámetro, no un artefacto de una única configuración.
+
+---
+
+# 14. Comparación de los cuatro métodos
+
+| Aspecto | PCA | Kernel PCA | t-SNE | UMAP |
+|---|---|---|---|---|
+| Lineal / no lineal | Lineal | No lineal (vía kernel RBF) | No lineal | No lineal |
+| Estructura que enfatiza | Varianza global (covarianza) | Similitud no lineal global vía kernel | Vecindad local | Vecindad local + algo de estructura global |
+| Interpretación de los ejes | Directa: combinación lineal de variables (cargas) | Sin interpretación directa; relacional | Sin interpretación; solo vecindad relativa | Sin interpretación; solo vecindad relativa |
+| Relación con variables originales | Explícita (`pca$rotation`) | Indirecta (vía el kernel) | Ninguna | Ninguna |
+| Patrones identificados | Un eje dominante de calidad sensorial (PC1) + defectos (PC2) + uniformidad/dulzura (PC3) + altitud/humedad (PC4) | Estructura en anillo (sigma bajo) o radial/estrella (sigma alto); sensible al parámetro | Nube continua, sin clústeres discretos; se fragmenta con perplexity baja | Separa un subgrupo real (`Moisture` = 0) de forma robusta a los parámetros |
+| Agrupamientos | No hay grupos discretos, solo un continuo | No hay grupos discretos claros | No hay grupos discretos claros | Sí: 2 grupos, uno ligado a un problema de datos faltantes |
+| Posibles atípicos | Sí, muy claros (lote con todo en 0, lotes con 30+ defectos, altitud = 1 m) | Se difuminan un poco por la transformación no lineal | Difíciles de distinguir de ruido local | El "grupo" separado es en realidad un artefacto de datos, no un atípico puntual |
+| Utilidad principal | Resumir varianza e interpretar ejes de calidad | Explorar estructura no lineal | Visualización exploratoria de vecindades | Visualización exploratoria + detección de subpoblaciones/anomalías de datos |
+| Uso potencial en modelamiento | Sí, como reducción de dimensión previa a un modelo (ejes estables y proyectables) | Parcialmente (proyección de nuevas obs. es posible pero más costosa) | No recomendado como *feature* de entrada | No recomendado como *feature* de entrada |
+| Transformación de nuevas observaciones | Directa (multiplicar por `rotation`) | Posible pero requiere reevaluar el kernel contra los datos de entrenamiento | No definida de forma nativa | No definida de forma nativa (existen aproximaciones, no exactas) |
+| Principales limitaciones | Solo captura estructura lineal | Muy sensible a `sigma`; sin cargas interpretables | Solo vecindad local; no determinista sin semilla; sensible a `perplexity` | Sensible a `n_neighbors`/`min_dist`; puede sugerir agrupamientos que en realidad son artefactos de datos (como aquí) |
+
+---
+
+# 15. Visualización frente a modelamiento
+
+Estos métodos no son intercambiables según el objetivo:
+
+- **Reducción dimensional para análisis / generación de variables para modelos:** PCA (y, con más cuidado, Kernel PCA) son los únicos que producen ejes con una regla de proyección fija y reutilizable sobre observaciones nuevas.
+- **Visualización exploratoria / identificación de agrupamientos y atípicos:** las cuatro técnicas sirven, pero t-SNE y UMAP son las más informativas para vecindades locales — aunque, como muestra el caso de UMAP en este dataset, un agrupamiento visualmente muy claro puede reflejar un **problema de calidad de datos** (humedad registrada como 0) y no una subpoblación real de café.
+
+**¿Por qué una representación 2D con grupos visualmente claros no garantiza una buena transformación para un modelo predictivo?** Porque t-SNE y UMAP distorsionan deliberadamente las distancias globales para privilegiar la vecindad local, no son invertibles, no se definen mediante una función fija aplicable a observaciones nuevas (a diferencia de PCA/Kernel PCA), y su resultado cambia con la semilla aleatoria y con parámetros como `perplexity` o `n_neighbors`. Son herramientas de visualización/exploración, no de generación de variables estables para un pipeline de modelamiento — y, como se vio en la sección 13, pueden hacer visualmente prominente un artefacto de captura de datos.
+
+---
+
+# 16–18. Presentación final, preguntas de sustentación y evaluación
+
+Contenido de referencia para preparar las diapositivas (ver estructura sugerida del taller) y anticipar preguntas de sustentación — no requiere código adicional; se construye a partir de las secciones anteriores.
+
+---
+
+# 19. Pregunta final
+
+> ¿Qué información de la estructura multivariada de sus datos conserva o enfatiza cada método —PCA, Kernel PCA, t-SNE y UMAP— y cuál resulta más útil para el objetivo particular de su análisis?
+
+**PCA** conserva la estructura lineal de mayor varianza y permite nombrar ejes interpretables: un eje dominante de **calidad sensorial general** (PC1, 47.7%), uno de **defectos físicos/humedad** (PC2), uno de **uniformidad/dulzura vs. intensidad de sabor** (PC3) y uno de **altitud/humedad de la finca** (PC4). Es el método más útil aquí para **entender qué variables explican la variabilidad** entre lotes de café y para detectar atípicos multivariados claros (lote con todo en cero, lotes con decenas de defectos, altitud = 1 m).
+
+**Kernel PCA** muestra que, al forzar una lente no lineal, la estructura fundamentalmente unidimensional de calidad (el gradiente de PC1) puede "curvarse" en formas como un anillo o un patrón radial — pero esas formas dependen fuertemente de `sigma` y no aportan una interpretación más rica que PCA lineal para este dataset en particular; es más útil como ejercicio exploratorio/diagnóstico que como herramienta definitiva.
+
+**t-SNE** confirma que no hay clústeres discretos naturales en los datos: los lotes forman un continuo de calidad, y solo aparecen filamentos artificiales al forzar `perplexity` muy baja.
+
+**UMAP** es el único método que separa un grupo genuinamente distinto — pero la investigación posterior revela que ese grupo corresponde a un **problema de captura de datos** (`Moisture = 0` en 174 lotes, un valor no plausible físicamente), no a una subpoblación real de café. Esto es en sí mismo un hallazgo valioso: UMAP funcionó aquí como herramienta de **auditoría de calidad de datos**, más que como confirmación de una estructura biológica/sensorial oculta.
+
+**Conclusión para el objetivo del análisis** (entender qué distingue a los lotes de café de mejor/peor calidad y su relación con variables físicas): **PCA es el método más útil**, porque sus ejes son interpretables y proyectables; **UMAP es el complemento más valioso**, no para modelar sino para **auditar la calidad de los datos** antes de confiar en cualquier modelo posterior.

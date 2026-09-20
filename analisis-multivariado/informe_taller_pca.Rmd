@@ -69,23 +69,36 @@ data_f <- data %>%
   filter(is.na(altitude_mean_meters) | (altitude_mean_meters > 0 & altitude_mean_meters <= 3000)) %>%
   filter(!is.na(altitude_mean_meters))
 
-datos <- data_f %>% select(all_of(vars_cuantitativas))
-
-dim(datos)
+X <- data_f %>% select(all_of(vars_cuantitativas))
+datos <- as.data.frame(scale(X))
 ```
 
 Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin datos faltantes.
+
+> **Convención de nombres.** Para reproducir el código del taller al pie de la letra se usan los mismos nombres que él:
+>
+> - **`X`** es la matriz de datos en sus unidades originales. Es la que el taller usa en las secciones 3 a 9 (`str(X)`, `cor(X)`, `S <- cov(X)`, `prcomp(X, ...)`).
+> - **`datos`** es la misma matriz ya estandarizada. Es la que el taller usa en Kernel PCA (`kpca(~., data = datos, ...)`). Kernel PCA con kernel RBF necesita las variables en la misma escala: de lo contrario la altitud, medida en metros, dominaría por completo las distancias entre lotes.
+> - En t-SNE y UMAP el taller aplica `X <- scale(datos)`. Como `datos` ya está estandarizada, esa línea no cambia los valores.
 
 ---
 
 # 3. Exploración inicial
 
-```{r exploracion}
-str(datos)
-head(datos)
-summary(datos)
-colSums(is.na(datos))
-cor(datos)
+```{r exploracion, R.options = list(max.print = 100)}
+str(X)
+dim(X)
+head(X)
+summary(X)
+is.na(X)
+```
+
+`is.na(X)` devuelve un valor lógico por cada celda (1070 × 14); la salida se recorta a las primeras filas solo para que el informe sea legible. Ninguna celda es `TRUE`: tras el tratamiento de la sección 2 no quedan datos faltantes.
+
+Relaciones entre las variables:
+
+```{r correlacion}
+cor(X)
 ```
 
 **Hallazgos principales:**
@@ -101,8 +114,8 @@ cor(datos)
 # 4. Matriz de varianzas-covarianzas y medidas de variabilidad
 
 ```{r covarianza}
-S <- cov(datos)
-round(S, 3)
+S <- cov(X)
+S
 ```
 
 ## 4.1. Varianza total
@@ -124,7 +137,7 @@ varianza_generalizada
 El determinante de `S` es **≈ 2.88 × 10⁻⁷**, un número extremadamente pequeño. Esto **no** indica multicolinealidad extrema en términos relativos: es otro artefacto de escala, porque el determinante es un producto de varianzas y covarianzas en unidades muy distintas (metros² frente a escalas 0–10²), lo que aplasta el valor. Por eso la comparación cruda entre varianza total y generalizada no es directamente interpretable aquí sin normalizar.
 
 ```{r var-promedio}
-p <- ncol(datos)
+p <- ncol(X)
 varianza_total_media <- varianza_total / p
 varianza_generalizada_media <- varianza_generalizada^(1 / p)
 varianza_total_media

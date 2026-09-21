@@ -102,7 +102,7 @@ cor(datos)
 
 ```{r covarianza}
 S <- cov(datos)
-round(S, 3)
+signif(S, 3)
 ```
 
 ## 4.1. Varianza total

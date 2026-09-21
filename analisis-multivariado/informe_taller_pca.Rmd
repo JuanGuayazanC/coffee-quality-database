@@ -81,11 +81,20 @@ Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin dato
 > **📐 Teoría — la matriz de datos.** Todo el análisis parte de una matriz $X_{n \times p}$, con $n = 1070$ filas (lotes) y $p = 14$ columnas (variables). `summary()` describe cada columna **por separado** (estadísticos univariados) — todavía no hay nada "multivariado" en este paso, solo un primer vistazo variable por variable.
 
 ```{r exploracion}
-str(datos)              # tipo de cada variable
-dim(datos)               # n x p
-head(datos)               # primeras filas
-summary(datos)             # estadísticos univariados, columna por columna
-colSums(is.na(datos))       # datos faltantes por variable
+# La matriz de datos es un arreglo de n filas (lotes) x p columnas (variables).
+# Todo el análisis multivariado parte de ella.
+
+# str(): estructura interna, qué tipo es cada variable
+str(datos)
+# dim(): las dimensiones n x p de la matriz
+dim(datos)
+# head(): primeras filas, para ver el formato de un registro
+head(datos)
+# summary(): medidas de localización y dispersión UNIVARIADAS, variable por variable.
+# Todavía no hay nada multivariado aquí: cada columna se mira por separado.
+summary(datos)
+# Conteo de datos faltantes por variable
+colSums(is.na(datos))
 ```
 
 Examine también las relaciones entre las variables:
@@ -95,7 +104,11 @@ Examine también las relaciones entre las variables:
 > A diferencia de $S$ (sección 4), $R$ **no cambia** si se reescalan las variables: mide solo asociación lineal, sin unidades.
 
 ```{r correlacion}
-cor(datos)   # matriz R (p x p)
+# Matriz de correlaciones R (p x p): es la matriz de covarianzas de las variables
+# ya estandarizadas. Cada r_ij está entre -1 y 1 y mide la asociación LINEAL entre
+# las variables i y j, sin unidades.
+# Clave: a diferencia de S, R no cambia si se reescalan las variables.
+cor(datos)
 ```
 
 **Hallazgos principales:**
@@ -115,7 +128,12 @@ cor(datos)   # matriz R (p x p)
 > Covarianza positiva → las variables suben juntas; negativa → una sube cuando la otra baja. A diferencia de $R$, **$S$ sí depende de las unidades de medida** — por eso la altitud (en metros) la domina por completo.
 
 ```{r covarianza}
-S <- cov(datos)   # matriz S (p x p)
+# Matriz de varianzas-covarianzas S (p x p, simétrica):
+#   - en la DIAGONAL, s_ii = var(X_i), la varianza de cada variable;
+#   - FUERA de la diagonal, s_ij = cov(X_i, X_j), que mide cómo varían juntas dos
+#     variables (positiva = suben juntas, negativa = una sube cuando la otra baja).
+# S sí depende de las unidades de medida: por eso la altitud, en metros, la domina.
+S <- cov(datos)
 signif(S, 3)
 ```
 
@@ -126,6 +144,9 @@ signif(S, 3)
 > Resume la dispersión global en un solo número, pero **ignora las covarianzas**: no dice nada sobre cómo se relacionan las variables entre sí.
 
 ```{r var-total}
+# Varianza total = traza de S = suma de la diagonal = suma de las varianzas individuales.
+# Resume la dispersión global en un solo número, pero IGNORA las covarianzas:
+# no dice nada sobre cómo se relacionan las variables entre sí.
 varianza_total <- sum(diag(S))
 varianza_total
 ```
@@ -139,6 +160,10 @@ La varianza total (**≈ 174 690**) está dominada casi por completo por `altitu
 > Sí recoge la variabilidad **conjunta**: es proporcional al volumen del elipsoide de dispersión que forman los datos. Si dos variables son casi linealmente dependientes, ese elipsoide se aplasta contra un plano y $|S| \to 0$.
 
 ```{r var-generalizada}
+# Varianza generalizada = determinante de S.
+# Sí recoge la variabilidad CONJUNTA: es proporcional al volumen del elipsoide de
+# dispersión que forman los datos. Si dos variables son casi linealmente dependientes,
+# ese elipsoide se aplasta contra un plano y det(S) tiende a 0.
 varianza_generalizada <- det(S)
 varianza_generalizada
 ```
@@ -150,8 +175,14 @@ El determinante de `S` es **≈ 2.88 × 10⁻⁷**, un número extremadamente pe
 > Ambas corrigen por la dimensión $p$ (número de variables), llevando el "volumen" de $|S|$ de vuelta a una escala por variable — así se pueden comparar conjuntos con distinto número de variables.
 
 ```{r var-promedio}
-p <- ncol(datos)   # número de variables
+# p = número de variables
+p <- ncol(datos)
+# Varianza total media = traza(S)/p: la varianza promedio por variable.
 varianza_total_media <- varianza_total / p
+# Varianza generalizada media = raíz p-ésima de det(S): lleva ese "volumen"
+# de vuelta a una escala por variable, comparable con la anterior.
+# Ambas corrigen por la dimensión p, así que permiten comparar conjuntos con
+# distinto número de variables.
 varianza_generalizada_media <- varianza_generalizada^(1 / p)
 varianza_total_media
 varianza_generalizada_media
@@ -170,6 +201,15 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 > Las columnas de $\Gamma$ (los **vectores propios**) son direcciones **ortogonales**: la primera recoge la mayor varianza posible, la segunda la mayor varianza restante, y así sucesivamente. Cada valor propio $\lambda_i$ es la varianza que explica su componente. Con `center = TRUE` (resta la media) y `scale. = TRUE` (divide por la desviación estándar), `prcomp` trabaja sobre $R$ en vez de sobre $S$ — justo lo que necesitamos porque las unidades aquí no son comparables.
 
 ```{r pca}
+# PCA = descomposición espectral de la matriz de correlaciones R.
+# Busca direcciones ORTOGONALES (los vectores propios) tales que la primera recoge
+# la mayor varianza posible, la segunda la mayor varianza restante, y así.
+# Cada valor propio lambda_i es la varianza que explica su componente.
+#
+# center = TRUE  -> resta la media de cada variable
+# scale.  = TRUE -> divide por la desviación estándar
+# Con ambos, prcomp trabaja sobre R (correlaciones) en vez de sobre S (covarianzas),
+# que es justo lo que necesitamos porque las unidades aquí no son comparables.
 pca <- prcomp(datos, center = TRUE, scale. = TRUE)
 ```
 
@@ -182,13 +222,22 @@ pca <- prcomp(datos, center = TRUE, scale. = TRUE)
 > La suma da exactamente $p = 14$ porque cada variable estandarizada aporta varianza 1. De ahí el **criterio de Kaiser**: retener las componentes con $\lambda_i > 1$, es decir, las que explican más varianza que una sola variable original.
 
 ```{r resumen-pca}
-summary(pca)   # sdev, proporción de varianza y acumulada por componente
-pca$sdev^2     # los lambda_i
+# summary(): desviación estándar de cada componente, su proporción de varianza
+# explicada y la acumulada.
+summary(pca)
+# Los VALORES PROPIOS: lambda_i = (sdev_i)^2 = varianza de la componente i.
+# Sobre datos estandarizados suman p (aquí 14), porque cada variable estandarizada
+# aporta varianza 1. De ahí el criterio de Kaiser: retener las componentes con
+# lambda > 1, es decir, las que explican más que una variable original por sí sola.
+pca$sdev^2
 ```
 
 > **📐 Teoría — gráfico de codo.** Grafica los $\lambda_i$ en orden decreciente. El "codo" es el punto donde la caída se aplana: a partir de ahí, cada componente adicional aporta poca varianza nueva, y suele tomarse como punto de corte.
 
 ```{r screeplot}
+# Gráfico de codo: los valores propios en orden decreciente.
+# El "codo" es el punto donde la caída se aplana: a partir de ahí cada componente
+# adicional aporta poca varianza nueva, y suele tomarse como corte.
 screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
 ```
 
@@ -210,6 +259,13 @@ Justificación:
 > donde $X_i^{*}$ son las variables estandarizadas y $\gamma_{ik}$ (la carga de $X_i$ en la componente $k$) es el peso de esa variable original. Se interpreta mirando qué variables tienen carga alta en valor absoluto y con qué signo: **mismo signo** → se mueven juntas en ese eje; **signo opuesto** → se oponen. El signo global de una componente es arbitrario — lo que importa son los contrastes.
 
 ```{r cargas}
+# CARGAS (loadings) = los vectores propios de R.
+# Cada columna es una componente; cada número es el peso de esa variable original
+# dentro de la componente. Una componente se interpreta mirando qué variables tienen
+# carga alta en valor absoluto y con qué signo:
+#   - mismo signo  -> esas variables se mueven juntas en ese eje
+#   - signo opuesto -> se oponen en ese eje
+# El signo global de una componente es arbitrario: lo que importa son los contrastes.
 round(pca$rotation[, 1:4], 3)
 ```
 
@@ -227,11 +283,17 @@ round(pca$rotation[, 1:4], 3)
 > Como $\Gamma$ es ortogonal, $\operatorname{Cov}(Z_i, Z_j) = 0$ para $i \neq j$: en la matriz de dispersión de abajo **no debe verse correlación lineal** en ningún panel. Lo que se busca ahí es otra cosa — agrupamientos, patrones y observaciones atípicas.
 
 ```{r coordenadas}
+# SCORES = coordenadas de cada lote en la nueva base de componentes.
+# Es el mismo dato, visto desde otros ejes: pca$x = datos estandarizados %*% rotation.
 head(pca$x)
 ```
 
 ```{r pairs-pca, fig.height=8}
-k <- 4   # componentes a conservar (decisión de la sección 6)
+# k = número de componentes que decidimos conservar (sección 6)
+k <- 4
+# Matriz de dispersión de las componentes: como son ortogonales entre sí, NO debe
+# verse correlación lineal en ningún panel. Lo que se busca aquí es otra cosa:
+# agrupamientos, patrones y observaciones atípicas.
 pairs(pca$x[, 1:k],
       main = "Matriz de dispersión - Componentes principales (café)",
       pch = 19, col = adjustcolor("steelblue", alpha.f = 0.4))
@@ -263,6 +325,14 @@ Estos patrones se mantienen entre distintos pares de componentes que involucran 
 > Ángulo pequeño → variables muy correlacionadas; ángulo recto → casi incorreladas; sentido opuesto → correlación negativa. La longitud de la flecha indica qué tan bien representada queda esa variable en este plano de dos componentes.
 
 ```{r biplot, fig.height=8}
+# BIPLOT: superpone en un mismo plano los scores (los lotes, como puntos) y las
+# cargas (las variables, como flechas).
+# Cómo se lee el ángulo entre dos flechas:
+#   - ángulo pequeño  -> variables muy correlacionadas
+#   - ángulo recto    -> variables casi incorreladas
+#   - sentido opuesto -> correlación negativa
+# Y la longitud de la flecha indica qué tan bien representada queda esa variable
+# en este plano de dos componentes.
 biplot(pca, choices = c(1, 2), cex = 0.6,
        main = "Biplot PCA - Componentes 1 y 2 (café)")
 ```
@@ -292,6 +362,17 @@ Lo que el biplot añade frente a la matriz de dispersión es la **dirección y m
 ```{r kpca}
 library(kernlab)
 
+# KERNEL PCA: hace PCA en un espacio de dimensión mucho mayor sin construirlo
+# explícitamente (el "truco del kernel"). En vez de diagonalizar S o R, diagonaliza
+# la matriz de kernel K (n x n), donde K_ij = k(x_i, x_j) mide la similitud entre
+# los lotes i y j.
+#
+# Kernel RBF (gaussiano):  k(x, y) = exp(-sigma * ||x - y||^2)
+# Es una similitud que vale 1 si los lotes son idénticos y decae con la distancia.
+# sigma regula esa caída: sigma grande -> solo los vecinos muy cercanos se parecen.
+#
+# Hay que estandarizar antes: el kernel usa distancias euclidianas, y sin estandarizar
+# la altitud (en metros) dominaría por completo ||x - y||.
 datos_esc <- as.data.frame(scale(datos))
 
 kp <- kpca(~., data = datos_esc,
@@ -299,7 +380,10 @@ kp <- kpca(~., data = datos_esc,
            kpar = list(sigma = 0.05),
            features = 5)
 
-eig <- kp@eig   # valores propios de K: el análogo a los lambda del PCA lineal
+# Valores propios de la matriz de kernel: el análogo a los lambda del PCA.
+# Su proporción cumple el mismo papel que la varianza explicada, pero calculada
+# solo sobre las componentes retenidas (features = 5), no sobre todo el espacio.
+eig <- kp@eig
 var_exp <- eig / sum(eig)
 round(var_exp, 3)
 round(cumsum(var_exp), 3)
@@ -314,6 +398,10 @@ Con `sigma = 0.05` y 5 features, la variabilidad se reparte de forma más unifor
 > **📐 Teoría — `rotated()`.** Da las coordenadas de los lotes en el espacio transformado por el kernel: el equivalente a `pca$x`, con una diferencia clave — aquí **no hay cargas**, porque los ejes no son combinaciones lineales de las variables originales. Estas coordenadas solo se interpretan de forma relacional: quién queda cerca de quién.
 
 ```{r pairs-kpca, fig.height=8}
+# rotated(): coordenadas de los lotes en el espacio transformado por el kernel.
+# Es el equivalente a pca$x, con una diferencia clave: aquí NO hay cargas, porque
+# los ejes no son combinaciones lineales de las variables originales. Por eso estas
+# coordenadas solo se interpretan de forma relacional: quién queda cerca de quién.
 scores_kpca <- rotated(kp)
 pairs(scores_kpca[, 1:5],
       main = "Matriz de dispersión - Kernel PCA (café, sigma = 0.05)",
@@ -362,11 +450,20 @@ Al aumentar `sigma` a 1 (vecindades más "anchas", similitud menos local), el an
 ```{r tsne}
 library(Rtsne)
 
+# t-SNE traduce distancias a PROBABILIDADES DE VECINDAD:
+#   1. en el espacio original calcula p_ij = probabilidad de que i tome a j como
+#      vecino, usando un kernel gaussiano centrado en cada punto;
+#   2. en el plano 2D calcula q_ij con una distribución t de Student (de colas
+#      pesadas, para que los puntos lejanos puedan separarse sin penalización);
+#   3. mueve los puntos del plano hasta minimizar la divergencia de Kullback-Leibler
+#      entre p y q, es decir, hasta que las vecindades se parezcan lo más posible.
+# Por eso preserva la estructura LOCAL y distorsiona a propósito las distancias globales.
+
 X <- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 
 set.seed(123)       # la optimización arranca de una configuración aleatoria
-# perplexity: vecindad efectiva a preservar. theta: aproximación de Barnes-Hut
-# (0 = cálculo exacto, más lento).
+# perplexity: número efectivo de vecinos que se intenta preservar por punto.
+# theta: aproximación de Barnes-Hut (0 = cálculo exacto pero mucho más lento).
 tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
 
 plot(tsne$Y,
@@ -412,9 +509,19 @@ Con `perplexity = 5` (vecindarios mucho más pequeños) la nube se fragmenta en 
 ```{r umap}
 library(uwot)
 
+# UMAP parte de una idea distinta a la de t-SNE:
+#   1. construye un grafo de los k vecinos más cercanos, con pesos difusos que
+#      representan la "probabilidad" de que dos lotes estén conectados;
+#   2. busca una disposición en 2D cuyo grafo de vecindades se parezca lo más
+#      posible al original (minimizando una entropía cruzada).
+# Al trabajar sobre un grafo global y no solo sobre pares, conserva mejor las
+# distancias relativas ENTRE grupos, no solo dentro de cada vecindario.
+
 X <- scale(datos)
 
 set.seed(123)
+# n_neighbors (por defecto 15): tamaño del vecindario. Pequeño -> estructura local;
+# grande -> estructura más global.
 um <- umap(X)
 head(um)
 

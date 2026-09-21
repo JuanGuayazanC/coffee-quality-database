@@ -3181,7 +3181,239 @@ sabor).</li>
 <li><code>altitude_mean_meters</code> tiene correlación baja-positiva
 (~0.15–0.20) con casi todos los puntajes sensoriales.</li>
 </ul>
+<div id="detección-de-valores-atípicos-univariados-diagramas-de-cajas-ajustados" class="section level2">
+<h2>3.1. Detección de valores atípicos univariados: diagramas de cajas
+ajustados</h2>
+<blockquote>
+<p><strong>Teoría — por qué el diagrama de cajas clásico falla con datos
+sesgados.</strong> La regla de Tukey marca como atípico todo punto fuera
+de <span class="math inline">\([Q_1 - 1.5\,\text{RIC},\; Q_3 +
+1.5\,\text{RIC}]\)</span>, usando el <strong>mismo</strong>
+multiplicador (1.5) a ambos lados de la caja. Esa regla asume
+implícitamente una distribución más o menos simétrica. Si la
+distribución está sesgada, un lado tiene una cola naturalmente más larga
+que el otro por razones que no tienen nada que ver con ser “atípico” — y
+la regla clásica reporta <strong>falsos positivos</strong> en el lado de
+la cola larga (marca puntos normales como atípicos) o <strong>falsos
+negativos</strong> en el lado corto. El <strong>diagrama de cajas
+ajustado</strong> (Hubert &amp; Vandervieren, 2008) corrige esto usando
+el <em>medcouple</em> <span class="math inline">\(MC\)</span> — una
+medida robusta de asimetría en <span class="math inline">\([-1,
+1]\)</span> — para estirar o encoger cada bigote según el sesgo: <span class="math display">\[ \big[\, Q_1 - 1.5\,e^{-4MC}\,\text{RIC},\;\; Q_3
++ 1.5\,e^{3MC}\,\text{RIC} \,\big] \quad (\text{si } MC \geq 0)
+\]</span> (con los exponentes intercambiados si <span class="math inline">\(MC &lt; 0\)</span>). Cuando <span class="math inline">\(MC = 0\)</span> (simetría perfecta) esta fórmula
+se reduce exactamente a la regla de Tukey.</p>
+</blockquote>
+<pre class="r"><code>library(robustbase)
+
+mc_vars &lt;- sapply(datos, mc)   # medcouple: asimetría robusta de cada variable, en [-1, 1]
+round(mc_vars, 3)</code></pre>
+<pre><code>##                Aroma               Flavor           Aftertaste 
+##                0.030                0.000               -0.059 
+##              Acidity                 Body              Balance 
+##                0.000                0.000                0.000 
+##           Uniformity            Clean.Cup            Sweetness 
+##               -1.000               -1.000               -1.000 
+##        Cupper.Points             Moisture Category.One.Defects 
+##                0.000               -0.571                1.000 
+## Category.Two.Defects altitude_mean_meters 
+##                0.333                0.112</code></pre>
+<pre class="r"><code>comparar_outliers &lt;- function(x) {
+  clasico &lt;- sum(x &lt; quantile(x, .25) - 1.5 * IQR(x) |
+                   x &gt; quantile(x, .75) + 1.5 * IQR(x))
+  ab &lt;- adjboxStats(x)               # calcula los bigotes ajustados por el medcouple
+  ajustado &lt;- sum(x &lt; ab$fence[1] | x &gt; ab$fence[2])
+  c(clasico = clasico, ajustado = ajustado)
+}
+
+tabla_outliers &lt;- t(sapply(datos, comparar_outliers))
+tabla_outliers</code></pre>
+<pre><code>##                      clasico ajustado
+## Aroma                     55       47
+## Flavor                    31       31
+## Aftertaste                63       66
+## Acidity                   19       19
+## Body                      23       23
+## Balance                   35       35
+## Uniformity               120      120
+## Clean.Cup                 76       76
+## Sweetness                 57       57
+## Cupper.Points             25       25
+## Moisture                 222      114
+## Category.One.Defects     135      135
+## Category.Two.Defects      77       20
+## altitude_mean_meters      47       73</code></pre>
+<pre class="r"><code>par(mfrow = c(1, 2))
+adjbox(datos$Moisture, main = &quot;Moisture\n(caja ajustada)&quot;, col = &quot;lightblue&quot;)
+boxplot(datos$Moisture, main = &quot;Moisture\n(caja clásica)&quot;, col = &quot;lightpink&quot;)</code></pre>
+<p><img role="img" src="data:image/png;base64,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" width="768" style="display: block; margin: auto;" /></p>
+<p><strong>Dos casos concretos donde la regla clásica sobre-marca
+atípicos:</strong></p>
+<ul>
+<li><strong><code>Moisture</code></strong> (medcouple ≈ -0.57, sesgo a
+la izquierda): la caja clásica marca <strong>222</strong> lotes como
+atípicos; la caja ajustada, que estira el bigote hacia el lado de la
+cola larga en vez de aplicar el mismo margen a ambos lados, marca solo
+<strong>114</strong> — la regla clásica duplica el conteo de “atípicos”
+simplemente por no tener en cuenta la asimetría.</li>
+<li><strong><code>Category.Two.Defects</code></strong> (medcouple ≈
+0.33, sesgo a la derecha): la caja clásica marca <strong>77</strong>
+lotes; la ajustada, <strong>20</strong> — una diferencia de casi 4
+veces.</li>
+<li>En cambio, <code>Uniformity</code>, <code>Clean.Cup</code>,
+<code>Sweetness</code> y <code>Category.One.Defects</code> tienen
+medcouple muy cercano a <span class="math inline">\(\pm 1\)</span> (el
+extremo teórico) porque son variables acotadas y muy concentradas en el
+valor máximo (la mayoría de lotes obtiene el puntaje perfecto, con pocas
+excepciones) — ahí el conteo clásico y el ajustado <strong>coinciden
+exactamente</strong>, así que no hay corrección que hacer: el sesgo
+aparente es estructural (una variable con tope y poca variación), no una
+distorsión de la regla de detección.</li>
+</ul>
+<p>Esto confirma, con datos reales de este dataset, la advertencia de
+que <strong>un diagrama de cajas clásico sobre variables sesgadas puede
+reportar atípicos que no lo son</strong> — de ahí la importancia de
+revisar el medcouple antes de decidir cuántos y cuáles valores extremos
+tiene cada variable.</p>
+</div>
+<div id="amerita-esto-transformar-variables-antes-de-pca" class="section level2">
+<h2>3.2. ¿Amerita esto transformar variables antes de PCA?</h2>
+<p>PCA no exige normalidad para calcularse — <span class="math inline">\(S\)</span> y <span class="math inline">\(R\)</span> son válidas para cualquier distribución
+con varianza finita —, pero una variable muy sesgada sí puede inflar
+artificialmente su propia varianza y desplazar hacia dónde apunta cada
+componente, incluso generando <strong>atípicos multivariados que no son
+reales</strong>: un valor extremo en una variable sesgada puede aparecer
+como “extremo” en el espacio de componentes simplemente por la escala,
+no porque esa observación sea genuinamente distinta de las demás. La
+forma correcta de comprobarlo — en vez de asumirlo — es: aplicar una
+transformación que <strong>simetrice</strong> la variable sesgada
+(Yeo-Johnson, la generalización de Box-Cox que admite ceros), rehacer
+PCA, y ver si los atípicos y patrones ya encontrados (sección 8)
+<strong>persisten</strong> (en cuyo caso son reales) o
+<strong>desaparecen</strong> (en cuyo caso eran un artefacto del
+sesgo).</p>
+<blockquote>
+<p><strong>Teoría — transformación de Yeo-Johnson.</strong> Generaliza
+Box-Cox para admitir valores <span class="math inline">\(\geq 0\)</span>
+(todas nuestras variables lo son) sin desplazamientos manuales: <span class="math display">\[ y(\lambda) = \begin{cases}
+\dfrac{(x+1)^{\lambda}-1}{\lambda}, &amp; \lambda \neq 0 \\ \ln(x+1),
+&amp; \lambda = 0 \end{cases} \qquad (x \geq 0) \]</span> El parámetro
+<span class="math inline">\(\lambda\)</span> se elige por máxima
+verosimilitud, buscando el valor que hace a <span class="math inline">\(y(\lambda)\)</span> lo más simétrica (cercana a
+normal) posible. <span class="math inline">\(\lambda = 1\)</span>
+equivale a no transformar.</p>
+</blockquote>
+<pre class="r"><code># Implementación propia de Yeo-Johnson (todas las variables del dataset son &gt;= 0,
+# así que solo se necesita la rama x &gt;= 0 de la fórmula de la nota teórica).
+yeojohnson_transform &lt;- function(x, lambda) {
+  if (lambda != 0) ((x + 1)^lambda - 1) / lambda else log(x + 1)
+}
+yeojohnson_loglik &lt;- function(lambda, x) {
+  y &lt;- yeojohnson_transform(x, lambda)
+  -length(x) / 2 * log(var(y)) + (lambda - 1) * sum(log(x + 1))  # log-verosimilitud perfilada
+}
+yeojohnson_fit &lt;- function(x) {
+  optimize(yeojohnson_loglik, interval = c(-5, 5), x = x, maximum = TRUE)$maximum
+}
+
+lambdas &lt;- sapply(datos[c(&quot;Moisture&quot;, &quot;Category.One.Defects&quot;, &quot;Category.Two.Defects&quot;)], yeojohnson_fit)
+round(lambdas, 3)</code></pre>
+<pre><code>##             Moisture Category.One.Defects Category.Two.Defects 
+##                5.000               -5.000               -0.217</code></pre>
+<p><strong>Los lambda estimados no son todos igual de
+confiables.</strong> <code>Category.Two.Defects</code> obtiene un <span class="math inline">\(\lambda \approx -0.22\)</span> dentro del rango de
+búsqueda: un ajuste estable. Pero <code>Moisture</code> y
+<code>Category.One.Defects</code> empujan <span class="math inline">\(\lambda\)</span> hasta el borde mismo del rango
+permitido (<span class="math inline">\(5\)</span> y <span class="math inline">\(-5\)</span>): la optimización no converge a un
+óptimo interior, señal de que la máxima verosimilitud <strong>no
+encuentra</strong> ninguna transformación de potencia que las simetrice
+bien. La razón ya la conocemos: ambas están <strong>infladas en
+cero</strong> — 174 de 1070 lotes tienen <code>Moisture</code>
+exactamente 0 (sección 13, hallazgo de UMAP: son mediciones faltantes
+codificadas como cero, no café realmente seco) y la mayoría de lotes
+tiene <code>Category.One.Defects = 0</code> — una mezcla de “pico en
+cero + cola continua” no es el tipo de asimetría que una transformación
+monótona de potencia puede corregir. Por eso se transforma
+<strong>solo</strong> <code>Category.Two.Defects</code>, que sí tiene un
+ajuste bien definido:</p>
+<pre class="r"><code>pca_referencia &lt;- prcomp(datos, center = TRUE, scale. = TRUE)  # PCA sin transformar, igual al de la sección 5
+
+datos_transformados &lt;- datos
+datos_transformados$Category.Two.Defects &lt;- yeojohnson_transform(datos$Category.Two.Defects, lambdas[&quot;Category.Two.Defects&quot;])
+
+pca_transformado &lt;- prcomp(datos_transformados, center = TRUE, scale. = TRUE)
+
+for (k in 1:4) {
+  cat(&quot;PC&quot;, k, &quot;: correlación =&quot;, round(abs(cor(pca_referencia$x[, k], pca_transformado$x[, k])), 3), &quot;\n&quot;)
+}</code></pre>
+<pre><code>## PC 1 : correlación = 1 
+## PC 2 : correlación = 0.06 
+## PC 3 : correlación = 0.091 
+## PC 4 : correlación = 0.877</code></pre>
+<p><strong>La prueba decisiva — ¿siguen siendo atípicos los mismos dos
+lotes de la sección 8?</strong> Los dos lotes con más defectos (30 y 31
+de <code>Category.Two.Defects</code>) eran, en el PCA original, los
+valores más extremos de <strong>todo</strong> PC2:</p>
+<pre class="r"><code>idx_defectos &lt;- order(datos$Category.Two.Defects, decreasing = TRUE)[1:2]
+
+cat(&quot;Rango completo de PC2 (original):&quot;, round(range(pca_referencia$x[, 2]), 2), &quot;\n&quot;)</code></pre>
+<pre><code>## Rango completo de PC2 (original): -16.45 6.56</code></pre>
+<pre class="r"><code>cat(&quot;PC2 (original) de los dos lotes con más defectos:&quot;,
+    round(pca_referencia$x[idx_defectos, 2], 2), &quot;\n\n&quot;)</code></pre>
+<pre><code>## PC2 (original) de los dos lotes con más defectos: -16.45 -4.93</code></pre>
+<pre class="r"><code>cat(&quot;Rango completo de PC2 (Category.Two.Defects transformada):&quot;, round(range(pca_transformado$x[, 2]), 2), &quot;\n&quot;)</code></pre>
+<pre><code>## Rango completo de PC2 (Category.Two.Defects transformada): -14.54 2.4</code></pre>
+<pre class="r"><code>cat(&quot;PC2 (transformado) de los mismos dos lotes:&quot;,
+    round(pca_transformado$x[idx_defectos, 2], 2), &quot;\n&quot;)</code></pre>
+<pre><code>## PC2 (transformado) de los mismos dos lotes: -1.68 1</code></pre>
+<p><strong>Resultado: los atípicos dejan de ser extremos.</strong> En el
+PCA original, el lote con 31 defectos tenía PC2 = −16.45 — literalmente
+el extremo que define todo el rango de PC2 (de −16.45 a 6.56) — y el de
+30 defectos, PC2 = −4.93, también entre los más bajos. Una vez corregido
+el sesgo de <code>Category.Two.Defects</code>, esos mismos dos lotes
+quedan en PC2 ≈ −1.68 y 1.00 — dentro de un rango mucho más acotado (el
+nuevo rango completo de PC2 es −14.54 a 2.4) y ya lejos de definir el
+extremo del eje como antes. Es decir: <strong>una parte de lo que en la
+sección 8 se interpretó como “atípicos multivariados genuinos” era, en
+realidad, un artefacto de no haber corregido el sesgo de una sola
+variable (el conteo crudo de defectos secundarios)</strong>, exactamente
+el mecanismo que advierte la teoría de cajas ajustadas (sección
+3.1).</p>
+<p><strong>En cambio, el lote con los diez puntajes sensoriales en cero
+sigue siendo tan extremo como antes</strong> (PC1 = 56.14 en ambas
+versiones — la correlación de PC1 es exactamente 1 porque ninguna
+variable transformada pesa en PC1, sección 7): ese punto
+<strong>sí</strong> es un atípico real, no un artefacto de escala — es
+coherente con lo que ya se sabía: un error evidente de captura de datos
+(todos los puntajes en 0 es físicamente imposible para un lote
+calificado), no una variable sesgada corrigiéndose.</p>
+<p><strong>Decisión para esta entrega: se mantiene el PCA sin
+transformar (sección 5) como el análisis oficial</strong>, con una
+salvedad ahora documentada explícitamente en vez de asumida:</p>
+<ol style="list-style-type: decimal">
+<li>PC1 — el eje de calidad sensorial general (47.7 % de la varianza,
+sección 7), la conclusión más importante del informe — es
+<strong>completamente insensible</strong> a esta corrección en todas las
+variantes probadas.</li>
+<li>El efecto real (los dos lotes de mayor conteo de defectos dejan de
+ser atípicos extremos en PC2) queda <strong>documentado aquí como
+hallazgo</strong>, y se incorpora como matiz a la lectura de esos dos
+lotes en la sección 8: son lotes con más defectos que el promedio, pero
+su aparente extremidad multivariada en PC2 estaba inflada por el sesgo
+de la variable, no es enteramente genuina.</li>
+<li><code>Moisture</code> y <code>Category.One.Defects</code> no se
+transforman porque, según la propia prueba de Yeo-Johnson, no son
+variables “sesgadas” en el sentido que una transformación de potencia
+pueda corregir — están infladas en cero, un problema de calidad de datos
+(ya tratado en la sección 13) y no de asimetría.</li>
+<li>Adoptar la versión transformada como oficial exigiría rehacer
+cargas, biplot, Kernel PCA y comparación bajo una segunda estructura —
+el análisis completo con <code>Category.Two.Defects</code> transformada
+está desarrollado en <code>pca_alternativo_transformado.Rmd</code>,
+listo para presentarse si se considera necesario adoptarlo.</li>
+</ol>
 <hr />
+</div>
 </div>
 <div id="matriz-de-varianzas-covarianzas-y-medidas-de-variabilidad" class="section level1">
 <h1>4. Matriz de varianzas-covarianzas y medidas de variabilidad</h1>

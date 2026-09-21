@@ -118,6 +118,112 @@ cor(datos)   # matriz R (p x p)
 - `Category.One/Two.Defects` y `Moisture` están **débil o negativamente correlacionadas** con el bloque sensorial: aportan información distinta (calidad física del grano, no sabor).
 - `altitude_mean_meters` tiene correlación baja-positiva (~0.15–0.20) con casi todos los puntajes sensoriales.
 
+## 3.1. Detección de valores atípicos univariados: diagramas de cajas ajustados
+
+> **Teoría — por qué el diagrama de cajas clásico falla con datos sesgados.** La regla de Tukey marca como atípico todo punto fuera de $[Q_1 - 1.5\,\text{RIC},\; Q_3 + 1.5\,\text{RIC}]$, usando el **mismo** multiplicador (1.5) a ambos lados de la caja. Esa regla asume implícitamente una distribución más o menos simétrica. Si la distribución está sesgada, un lado tiene una cola naturalmente más larga que el otro por razones que no tienen nada que ver con ser "atípico" — y la regla clásica reporta **falsos positivos** en el lado de la cola larga (marca puntos normales como atípicos) o **falsos negativos** en el lado corto. El **diagrama de cajas ajustado** (Hubert & Vandervieren, 2008) corrige esto usando el *medcouple* $MC$ — una medida robusta de asimetría en $[-1, 1]$ — para estirar o encoger cada bigote según el sesgo:
+> $$ \big[\, Q_1 - 1.5\,e^{-4MC}\,\text{RIC},\;\; Q_3 + 1.5\,e^{3MC}\,\text{RIC} \,\big] \quad (\text{si } MC \geq 0) $$
+> (con los exponentes intercambiados si $MC < 0$). Cuando $MC = 0$ (simetría perfecta) esta fórmula se reduce exactamente a la regla de Tukey.
+
+```{r medcouple}
+library(robustbase)
+
+mc_vars <- sapply(datos, mc)   # medcouple: asimetría robusta de cada variable, en [-1, 1]
+round(mc_vars, 3)
+```
+
+```{r cajas-ajustadas}
+comparar_outliers <- function(x) {
+  clasico <- sum(x < quantile(x, .25) - 1.5 * IQR(x) |
+                   x > quantile(x, .75) + 1.5 * IQR(x))
+  ab <- adjboxStats(x)               # calcula los bigotes ajustados por el medcouple
+  ajustado <- sum(x < ab$fence[1] | x > ab$fence[2])
+  c(clasico = clasico, ajustado = ajustado)
+}
+
+tabla_outliers <- t(sapply(datos, comparar_outliers))
+tabla_outliers
+```
+
+```{r boxplot-ajustado-comparacion, fig.height=4.5}
+par(mfrow = c(1, 2))
+adjbox(datos$Moisture, main = "Moisture\n(caja ajustada)", col = "lightblue")
+boxplot(datos$Moisture, main = "Moisture\n(caja clásica)", col = "lightpink")
+```
+
+**Dos casos concretos donde la regla clásica sobre-marca atípicos:**
+
+- **`Moisture`** (medcouple ≈ `r round(mc_vars["Moisture"], 2)`, sesgo a la izquierda): la caja clásica marca **222** lotes como atípicos; la caja ajustada, que estira el bigote hacia el lado de la cola larga en vez de aplicar el mismo margen a ambos lados, marca solo **114** — la regla clásica duplica el conteo de "atípicos" simplemente por no tener en cuenta la asimetría.
+- **`Category.Two.Defects`** (medcouple ≈ `r round(mc_vars["Category.Two.Defects"], 2)`, sesgo a la derecha): la caja clásica marca **77** lotes; la ajustada, **20** — una diferencia de casi 4 veces.
+- En cambio, `Uniformity`, `Clean.Cup`, `Sweetness` y `Category.One.Defects` tienen medcouple muy cercano a $\pm 1$ (el extremo teórico) porque son variables acotadas y muy concentradas en el valor máximo (la mayoría de lotes obtiene el puntaje perfecto, con pocas excepciones) — ahí el conteo clásico y el ajustado **coinciden exactamente**, así que no hay corrección que hacer: el sesgo aparente es estructural (una variable con tope y poca variación), no una distorsión de la regla de detección.
+
+Esto confirma, con datos reales de este dataset, la advertencia de que **un diagrama de cajas clásico sobre variables sesgadas puede reportar atípicos que no lo son** — de ahí la importancia de revisar el medcouple antes de decidir cuántos y cuáles valores extremos tiene cada variable.
+
+## 3.2. ¿Amerita esto transformar variables antes de PCA?
+
+PCA no exige normalidad para calcularse — $S$ y $R$ son válidas para cualquier distribución con varianza finita —, pero una variable muy sesgada sí puede inflar artificialmente su propia varianza y desplazar hacia dónde apunta cada componente, incluso generando **atípicos multivariados que no son reales**: un valor extremo en una variable sesgada puede aparecer como "extremo" en el espacio de componentes simplemente por la escala, no porque esa observación sea genuinamente distinta de las demás. La forma correcta de comprobarlo — en vez de asumirlo — es: aplicar una transformación que **simetrice** la variable sesgada (Yeo-Johnson, la generalización de Box-Cox que admite ceros), rehacer PCA, y ver si los atípicos y patrones ya encontrados (sección 8) **persisten** (en cuyo caso son reales) o **desaparecen** (en cuyo caso eran un artefacto del sesgo).
+
+> **Teoría — transformación de Yeo-Johnson.** Generaliza Box-Cox para admitir valores $\geq 0$ (todas nuestras variables lo son) sin desplazamientos manuales:
+> $$ y(\lambda) = \begin{cases} \dfrac{(x+1)^{\lambda}-1}{\lambda}, & \lambda \neq 0 \\ \ln(x+1), & \lambda = 0 \end{cases} \qquad (x \geq 0) $$
+> El parámetro $\lambda$ se elige por máxima verosimilitud, buscando el valor que hace a $y(\lambda)$ lo más simétrica (cercana a normal) posible. $\lambda = 1$ equivale a no transformar.
+
+```{r yeojohnson-funciones}
+# Implementación propia de Yeo-Johnson (todas las variables del dataset son >= 0,
+# así que solo se necesita la rama x >= 0 de la fórmula de la nota teórica).
+yeojohnson_transform <- function(x, lambda) {
+  if (lambda != 0) ((x + 1)^lambda - 1) / lambda else log(x + 1)
+}
+yeojohnson_loglik <- function(lambda, x) {
+  y <- yeojohnson_transform(x, lambda)
+  -length(x) / 2 * log(var(y)) + (lambda - 1) * sum(log(x + 1))  # log-verosimilitud perfilada
+}
+yeojohnson_fit <- function(x) {
+  optimize(yeojohnson_loglik, interval = c(-5, 5), x = x, maximum = TRUE)$maximum
+}
+
+lambdas <- sapply(datos[c("Moisture", "Category.One.Defects", "Category.Two.Defects")], yeojohnson_fit)
+round(lambdas, 3)
+```
+
+**Los lambda estimados no son todos igual de confiables.** `Category.Two.Defects` obtiene un $\lambda \approx -0.22$ dentro del rango de búsqueda: un ajuste estable. Pero `Moisture` y `Category.One.Defects` empujan $\lambda$ hasta el borde mismo del rango permitido ($5$ y $-5$): la optimización no converge a un óptimo interior, señal de que la máxima verosimilitud **no encuentra** ninguna transformación de potencia que las simetrice bien. La razón ya la conocemos: ambas están **infladas en cero** — 174 de 1070 lotes tienen `Moisture` exactamente 0 (sección 13, hallazgo de UMAP: son mediciones faltantes codificadas como cero, no café realmente seco) y la mayoría de lotes tiene `Category.One.Defects = 0` — una mezcla de "pico en cero + cola continua" no es el tipo de asimetría que una transformación monótona de potencia puede corregir. Por eso se transforma **solo** `Category.Two.Defects`, que sí tiene un ajuste bien definido:
+
+```{r yeojohnson-aplicar}
+pca_referencia <- prcomp(datos, center = TRUE, scale. = TRUE)  # PCA sin transformar, igual al de la sección 5
+
+datos_transformados <- datos
+datos_transformados$Category.Two.Defects <- yeojohnson_transform(datos$Category.Two.Defects, lambdas["Category.Two.Defects"])
+
+pca_transformado <- prcomp(datos_transformados, center = TRUE, scale. = TRUE)
+
+for (k in 1:4) {
+  cat("PC", k, ": correlación =", round(abs(cor(pca_referencia$x[, k], pca_transformado$x[, k])), 3), "\n")
+}
+```
+
+**La prueba decisiva — ¿siguen siendo atípicos los mismos dos lotes de la sección 8?** Los dos lotes con más defectos (30 y 31 de `Category.Two.Defects`) eran, en el PCA original, los valores más extremos de **todo** PC2:
+
+```{r yeojohnson-atipicos-persisten}
+idx_defectos <- order(datos$Category.Two.Defects, decreasing = TRUE)[1:2]
+
+cat("Rango completo de PC2 (original):", round(range(pca_referencia$x[, 2]), 2), "\n")
+cat("PC2 (original) de los dos lotes con más defectos:",
+    round(pca_referencia$x[idx_defectos, 2], 2), "\n\n")
+
+cat("Rango completo de PC2 (Category.Two.Defects transformada):", round(range(pca_transformado$x[, 2]), 2), "\n")
+cat("PC2 (transformado) de los mismos dos lotes:",
+    round(pca_transformado$x[idx_defectos, 2], 2), "\n")
+```
+
+**Resultado: los atípicos dejan de ser extremos.** En el PCA original, el lote con 31 defectos tenía PC2 = −16.45 — literalmente el extremo que define todo el rango de PC2 (de −16.45 a 6.56) — y el de 30 defectos, PC2 = −4.93, también entre los más bajos. Una vez corregido el sesgo de `Category.Two.Defects`, esos mismos dos lotes quedan en PC2 ≈ −1.68 y 1.00 — dentro de un rango mucho más acotado (el nuevo rango completo de PC2 es −14.54 a 2.4) y ya lejos de definir el extremo del eje como antes. Es decir: **una parte de lo que en la sección 8 se interpretó como "atípicos multivariados genuinos" era, en realidad, un artefacto de no haber corregido el sesgo de una sola variable (el conteo crudo de defectos secundarios)**, exactamente el mecanismo que advierte la teoría de cajas ajustadas (sección 3.1).
+
+**En cambio, el lote con los diez puntajes sensoriales en cero sigue siendo tan extremo como antes** (PC1 = 56.14 en ambas versiones — la correlación de PC1 es exactamente 1 porque ninguna variable transformada pesa en PC1, sección 7): ese punto **sí** es un atípico real, no un artefacto de escala — es coherente con lo que ya se sabía: un error evidente de captura de datos (todos los puntajes en 0 es físicamente imposible para un lote calificado), no una variable sesgada corrigiéndose.
+
+**Decisión para esta entrega: se mantiene el PCA sin transformar (sección 5) como el análisis oficial**, con una salvedad ahora documentada explícitamente en vez de asumida:
+
+1. PC1 — el eje de calidad sensorial general (47.7 % de la varianza, sección 7), la conclusión más importante del informe — es **completamente insensible** a esta corrección en todas las variantes probadas.
+2. El efecto real (los dos lotes de mayor conteo de defectos dejan de ser atípicos extremos en PC2) queda **documentado aquí como hallazgo**, y se incorpora como matiz a la lectura de esos dos lotes en la sección 8: son lotes con más defectos que el promedio, pero su aparente extremidad multivariada en PC2 estaba inflada por el sesgo de la variable, no es enteramente genuina.
+3. `Moisture` y `Category.One.Defects` no se transforman porque, según la propia prueba de Yeo-Johnson, no son variables "sesgadas" en el sentido que una transformación de potencia pueda corregir — están infladas en cero, un problema de calidad de datos (ya tratado en la sección 13) y no de asimetría.
+4. Adoptar la versión transformada como oficial exigiría rehacer cargas, biplot, Kernel PCA y comparación bajo una segunda estructura — el análisis completo con `Category.Two.Defects` transformada está desarrollado en `pca_alternativo_transformado.Rmd`, listo para presentarse si se considera necesario adoptarlo.
+
 ---
 
 # 4. Matriz de varianzas-covarianzas y medidas de variabilidad

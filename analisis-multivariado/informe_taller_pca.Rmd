@@ -177,7 +177,30 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 
 # 5. Análisis de Componentes Principales
 
-**Decisión: ESTANDARIZAR.** Las variables tienen unidades y escalas muy distintas (metros vs. puntaje 0–10 vs. porcentaje vs. conteo de defectos). Sin estandarizar, `altitude_mean_meters` dominaría por completo la varianza total y, por tanto, el primer componente, ocultando la estructura de los puntajes sensoriales que es el objeto real de interés del análisis.
+**Decisión: ESTANDARIZAR** las variables antes de aplicar PCA (`prcomp(datos, center = TRUE, scale. = TRUE)`), es decir, diagonalizar $R$ en vez de $S$. La justificación, punto por punto:
+
+- **Unidades de medición.** Las 14 variables no comparten una unidad común: `altitude_mean_meters` está en metros, los diez puntajes de catación están en una escala de 0 a 10, `Moisture` es una proporción (0 a 1) y `Category.One.Defects`/`Category.Two.Defects` son conteos de defectos. $S$ (sección 4) mezcla en la misma matriz metros², puntos² y conteos² — magnitudes que no son comparables entre sí, solo tienen sentido dentro de la unidad original de cada variable.
+- **Diferencias de escala.** El rango de `altitude_mean_meters` va de 0 a 2559 m, frente a 8.6–10 en los puntajes sensoriales, 0–0.20 en `Moisture` y 0–47 en `Category.Two.Defects`: cuatro órdenes de magnitud entre la variable de rango más amplio y la más angosta.
+- **Diferencias de varianza.** Esa diferencia de escala se traduce directamente en la diagonal de $S$: $\operatorname{Var}(\texttt{altitude\_mean\_meters}) \approx 174\,656$, frente a $0.13$–$0.63$ en los puntajes sensoriales, $3.5$–$27.9$ en los defectos y apenas $0.002$ en `Moisture` — hasta ocho órdenes de magnitud de diferencia entre varianzas individuales. Por eso `altitude_mean_meters`, ella sola, explica el **99.98 %** de la varianza total calculada en la sección 4.1: no porque sea la variable más relevante, sino porque su unidad (metros) produce números mucho más grandes.
+- **Objetivo del análisis.** El objetivo es entender la estructura conjunta de la calidad del café — el bloque sensorial, los defectos físicos y la altitud/humedad — dándole a cada dimensión un peso comparable a priori, no dejar que el resultado dependa de qué unidad arbitraria se usó para medir cada variable. Una prueba directa de que el resultado sin estandarizar sería un artefacto: si `altitude_mean_meters` se hubiera registrado en kilómetros en vez de metros, su varianza caería por un factor de $10^6$ y PCA sobre $S$ dejaría de estar dominado por la altitud — sin que nada real en los datos hubiera cambiado. Eso confirma que "PC1 = altitud" no sería un hallazgo genuino sino un accidente de unidades, y es la razón de fondo para estandarizar: solo así cada variable aporta la misma varianza (= 1) de entrada, y PCA queda libre para encontrar la covariación real entre calidad sensorial, defectos y altitud — que es lo que el análisis busca — en vez de limitarse a redescubrir en qué unidad se midió cada cosa.
+
+El taller aclara que **no es necesario** construir `Z <- scale(X)` por separado antes de llamar a `prcomp()` — basta con `scale. = TRUE`. Aun así, se construye explícitamente para dejar a la vista qué es "estandarizar" y para verificar que coincide con lo que hace `prcomp` internamente:
+
+```{r estandarizacion-explicita}
+Z <- scale(datos)   # cada columna queda con media 0 y varianza 1: Z = D^(-1/2)(X - 1 x_barra^T)
+round(colMeans(Z), 12)   # ~ 0 en las 14 columnas
+round(apply(Z, 2, var), 3)  # 1 en las 14 columnas
+```
+
+```{r verificacion-equivalencia}
+# prcomp(datos, center = TRUE, scale. = TRUE) debe dar exactamente lo mismo que
+# prcomp(Z) sin volver a centrar/escalar (Z ya está estandarizada).
+pca_desde_Z <- prcomp(Z, center = FALSE, scale. = FALSE)
+pca_directo <- prcomp(datos, center = TRUE, scale. = TRUE)
+all.equal(unname(pca_desde_Z$x), unname(pca_directo$x))
+```
+
+Como se confirma arriba, ambos caminos son idénticos: `scale. = TRUE` dentro de `prcomp()` hace exactamente lo mismo que estandarizar primero con `scale()`. De aquí en adelante se usa `pca <- prcomp(datos, center = TRUE, scale. = TRUE)` (el camino recomendado por el taller), pero matemáticamente es indistinto a haber trabajado sobre `Z`.
 
 > **Teoría — PCA como problema de maximización (Lagrange).** Se busca la dirección $a$ (con $\lVert a \rVert = 1$) que maximiza la varianza de la proyección $Z = Xa$:
 > $$ \operatorname{Var}(Z) = a^\top S a $$
@@ -209,20 +232,26 @@ summary(pca)   # sdev, proporción de varianza explicada y acumulada por compone
 pca$sdev^2     # los valores propios lambda_i
 ```
 
+```{r kaiser}
+sum(pca$sdev^2 > 1)  # número de componentes que cumplen el criterio de Kaiser
+```
+
 > **Teoría — gráfico de codo.** Grafica los $\lambda_i$ en orden decreciente. El "codo" es el punto donde la caída se aplana: a partir de ahí, cada componente adicional aporta poca varianza nueva, y suele tomarse como punto de corte.
 
 ```{r screeplot}
 screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
 ```
 
-**Decisión: se conservan k = 4 componentes.**
+**Decisión: se conservan k = 4 componentes.** Justificación, criterio por criterio:
 
-Justificación:
+- **Varianza explicada (individual).** PC1 explica el 47.7 %, PC2 el 10.0 %, PC3 el 9.6 % y PC4 el 7.3 %. A partir de PC5 la varianza individual cae a 6.0 % y sigue bajando de forma monótona (PC6 = 4.6 %, ..., PC14 = 0.7 %): ninguna componente después de la cuarta alcanza siquiera lo que aportaría "una variable original" por sí sola ($100\%/14 \approx 7.1\%$), mientras que las cuatro primeras sí lo superan.
+- **Varianza acumulada.** Con k = 4 se acumula **74.6 %** de la varianza total. Es una fracción razonable para resumir 14 variables en menos de un tercio de las dimensiones originales sin perder información sustancial. Pasar a k = 5 solo suma 6.0 puntos porcentuales más (80.5 % acumulado) a cambio de una componente bastante menos interpretable (ver más abajo): el costo marginal de una componente adicional deja de compensar el beneficio.
+- **Gráfico de codo.** El *scree plot* muestra una caída muy pronunciada de PC1 a PC2 (λ: 6.68 → 1.40) y luego una meseta mucho más plana. El "codo" visual más marcado está, en sentido estricto, en PC2 — pero detenerse ahí dejaría solo 57.7 % acumulado, insuficiente para representar 14 variables originales. El gráfico se usa como apoyo visual de la tendencia general, no como criterio único.
+- **Criterio de Kaiser ($\lambda_i > 1$), como chequeo independiente.** Los valores propios son $6.68,\ 1.40,\ 1.34,\ 1.02,\ 0.84,\ 0.65,\dots$: exactamente **4** superan 1 (PC4 = 1.02, justo por encima del umbral; PC5 = 0.84, ya por debajo). El criterio de Kaiser, calculado de forma completamente objetiva, coincide exactamente con k = 4.
+- **Interpretabilidad.** Cada una de las cuatro componentes retenidas tiene una lectura clara y distinta en el contexto cafetero (sección 7): calidad sensorial general (PC1), defectos físicos (PC2), uniformidad/dulzura (PC3) y altitud/humedad (PC4). Desde PC5 las cargas se reparten en magnitudes moderadas entre muchas variables a la vez, sin un patrón temático fácil de nombrar.
+- **Objetivo de la reducción dimensional.** El propósito de este análisis es exploratorio e interpretativo — entender qué dimensiones latentes componen la calidad del café —, no una reducción agresiva pensada para alimentar un modelo predictivo (donde el criterio dominante sería otro, p. ej. desempeño *out-of-sample*). Para ese objetivo, la interpretabilidad de cada eje pesa más que exprimir el último punto porcentual de varianza acumulada, por lo que se prioriza un k donde todas las componentes retenidas sean nombrables.
 
-- El gráfico de codo muestra una caída muy pronunciada entre PC1 y PC2 (de varianza ≈ 6.68 a ≈ 1.40), y luego un descenso mucho más gradual — el "codo" técnico está en PC2, pero solo PC1–PC2 explican el 57.7% de la varianza, una fracción algo baja para representar 14 variables originales.
-- Con k = 4 se acumula **74.6%** de la varianza (PC1 = 47.7%, PC2 = 10.0%, PC3 = 9.6%, PC4 = 7.3%).
-- Cada una de esas cuatro componentes tiene una **interpretación clara y distinta** en el contexto cafetero (ver sección 7): calidad sensorial general, defectos físicos, uniformidad/dulzura, y altitud/humedad. A partir de PC5 la varianza explicada individual cae por debajo de 6% y las cargas dejan de tener un patrón fácil de nombrar.
-- El objetivo del análisis es exploratorio/interpretativo, no una reducción agresiva para un modelo predictivo, por lo que priorizamos interpretabilidad sobre minimizar k.
+**¿Por qué es adecuado conservar estas 4 componentes?** Porque cuatro criterios independientes convergen en el mismo número: (1) el criterio de Kaiser da exactamente 4 valores propios mayores que 1; (2) la varianza acumulada llega a un nivel razonable (74.6 %) sin necesitar más componentes; (3) el gráfico de codo confirma que, pasada la cuarta componente, la ganancia marginal de varianza es pequeña y decrece suavemente; y (4) las cuatro componentes retenidas — a diferencia de la quinta en adelante — tienen una interpretación sustantiva clara en términos de las variables originales del café (sección 7). Como el objetivo del análisis es interpretar la estructura de calidad y no comprimir al máximo, k = 4 es el punto donde se retiene la mayor cantidad de información nombrable sin arrastrar componentes cuyo significado ya no se puede justificar con las variables originales.
 
 ---
 
@@ -236,10 +265,33 @@ Justificación:
 round(pca$rotation[, 1:4], 3)
 ```
 
-- **PC1 (47.7% de la varianza) — "calidad sensorial general":** todas las variables de catación (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) cargan con signo negativo y magnitud similar (entre −0.33 y −0.36), y en menor medida Uniformity, Clean.Cup y Sweetness (≈ −0.22 a −0.24). No hay variables en sentido opuesto: PC1 es esencialmente un eje de "calidad global" del lote — lotes con mejor puntaje en todos los atributos sensoriales tienen valores muy negativos en PC1 (el signo es arbitrario, lo relevante es que se mueven todas juntas).
-- **PC2 (10.0%) — "defectos físicos / humedad":** dominado por `Category.One.Defects` (−0.66) y `Category.Two.Defects` (−0.66), con `Moisture` acompañando (−0.26). Es un eje casi ortogonal al anterior: la calidad física del grano (defectos, humedad) varía de forma prácticamente independiente de la calidad sensorial.
-- **PC3 (9.6%) — "uniformidad/dulzura vs. atributos de sabor":** `Uniformity` (−0.46), `Clean.Cup` (−0.48) y `Sweetness` (−0.53) tienen cargas altas y del mismo signo, mientras que Aroma/Flavor/Acidity/Body/Balance tienen cargas positivas moderadas (~0.10–0.14) — sentido opuesto. Sugiere que, controlando por PC1, hay lotes que destacan más en "limpieza y dulzura de taza" que en "intensidad de sabor", y viceversa.
-- **PC4 (7.3%) — "altitud/humedad":** dominado casi en solitario por `altitude_mean_meters` (0.79) y `Moisture` (0.55), con el resto de variables con cargas cercanas a cero. Es un eje de metadatos de la finca/proceso, desconectado de la calidad sensorial.
+### PC1 (47.7 % de la varianza) — "calidad sensorial general"
+
+- **Variables con mayor peso:** Flavor (−0.362), Aftertaste (−0.359), Balance (−0.346), Acidity (−0.338), Cupper.Points (−0.336), Body (−0.336) y Aroma (−0.333) — los siete puntajes de catación "de intensidad", todos con magnitud entre 0.33 y 0.36.
+- **Variables con comportamientos similares:** Uniformity (−0.234), Clean.Cup (−0.216) y Sweetness (−0.222) tienen el mismo signo que el bloque anterior, aunque con menos peso: se mueven en la misma dirección que el resto de la calidad sensorial, solo que más débilmente.
+- **Variables que aparecen en sentidos opuestos:** ninguna con peso relevante — `Moisture` (0.071), `Category.One.Defects` (0.042), `Category.Two.Defects` (0.085) y `altitude_mean_meters` (−0.072) tienen cargas prácticamente nulas. PC1 no contrasta nada contra la calidad sensorial: es un eje de una sola dirección.
+- **Significado de la componente en el contexto de los datos:** un eje único de "qué tan bien puntuó el lote en general". Lotes con mejor desempeño en todos los atributos de cata (los diez puntajes, con más peso en los siete de intensidad) tienen valores muy negativos en PC1 — el signo es arbitrario, lo que importa es que las diez variables sensoriales se mueven juntas. Es el resumen de "qué tan buena es la taza", sin distinguir todavía matices entre atributos.
+
+### PC2 (10.0 %) — "defectos físicos"
+
+- **Variables con mayor peso:** `Category.One.Defects` (−0.661) y `Category.Two.Defects` (−0.664), prácticamente empatadas.
+- **Variables con comportamientos similares:** `Moisture` (−0.263) acompaña con el mismo signo, aunque con bastante menos peso — más humedad tiende a acompañar a más defectos registrados.
+- **Variables que aparecen en sentidos opuestos:** `Clean.Cup` (+0.152) es la única carga de signo contrario con magnitud apreciable (el resto — los otros nueve puntajes sensoriales y `altitude_mean_meters` — están todos por debajo de 0.10 en valor absoluto, prácticamente ruido). Es un contraste modesto pero coherente: lotes con más defectos físicos tienden a tener, en este eje, una taza ligeramente menos "limpia".
+- **Significado de la componente en el contexto de los datos:** un eje de calidad física del grano, casi ortogonal a PC1 — mide defectos y humedad, no sabor. Confirma que la calidad física varía de forma prácticamente independiente de la calidad sensorial: un lote puede puntuar alto en catación y aun así tener defectos físicos relevantes, y viceversa.
+
+### PC3 (9.6 %) — "consistencia y dulzura del lote vs. intensidad sensorial"
+
+- **Variables con mayor peso:** Sweetness (−0.532), Clean.Cup (−0.479) y Uniformity (−0.461).
+- **Variables con comportamientos similares:** `Moisture` (−0.332) se suma a ese grupo con el mismo signo — un bloque de "consistencia del lote" (dulzura, limpieza de taza, uniformidad y humedad) que se mueve unido.
+- **Variables que aparecen en sentidos opuestos:** los siete puntajes de intensidad sensorial (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) tienen cargas positivas moderadas (0.10–0.14), y `altitude_mean_meters` también es positiva y algo mayor (0.236) — todas de signo contrario al bloque de consistencia.
+- **Significado de la componente en el contexto de los datos:** PC3 distingue, dentro de lotes ya parecidos en PC1, a los que destacan más en "consistencia y dulzura de taza" (uniformidad, ausencia de defectos de limpieza, dulzura, más humedad) de los que destacan más en "intensidad sensorial y altitud" — un matiz secundario que PC1 no capturaba porque promediaba todos los atributos juntos.
+
+### PC4 (7.3 %) — "altitud y humedad, con menos defectos primarios"
+
+- **Variables con mayor peso:** `altitude_mean_meters` (0.791), muy por encima de cualquier otra variable.
+- **Variables con comportamientos similares:** `Moisture` (0.545) acompaña con el mismo signo — en este eje, fincas más altas están asociadas a mayor humedad medida en el grano.
+- **Variables que aparecen en sentidos opuestos:** `Category.One.Defects` (−0.237) es la única carga adicional no despreciable y tiene signo contrario — lotes de fincas más altas y húmedas tienden a tener, en este eje, menos defectos primarios. El resto de variables (los diez puntajes sensoriales y `Category.Two.Defects`) quedan por debajo de 0.08 en valor absoluto.
+- **Significado de la componente en el contexto de los datos:** un eje de metadatos agroclimáticos y de proceso — altitud, humedad y, en menor medida, defectos primarios —, prácticamente desconectado tanto de la calidad sensorial (PC1) como de los defectos secundarios y la limpieza de taza (PC2, PC3).
 
 ---
 

@@ -3347,12 +3347,92 @@ PCA.</p>
 </div>
 <div id="análisis-de-componentes-principales" class="section level1">
 <h1>5. Análisis de Componentes Principales</h1>
-<p><strong>Decisión: ESTANDARIZAR.</strong> Las variables tienen
-unidades y escalas muy distintas (metros vs. puntaje 0–10 vs. porcentaje
-vs. conteo de defectos). Sin estandarizar,
-<code>altitude_mean_meters</code> dominaría por completo la varianza
-total y, por tanto, el primer componente, ocultando la estructura de los
-puntajes sensoriales que es el objeto real de interés del análisis.</p>
+<p><strong>Decisión: ESTANDARIZAR</strong> las variables antes de
+aplicar PCA (<code>prcomp(datos, center = TRUE, scale. = TRUE)</code>),
+es decir, diagonalizar <span class="math inline">\(R\)</span> en vez de
+<span class="math inline">\(S\)</span>. La justificación, punto por
+punto:</p>
+<ul>
+<li><strong>Unidades de medición.</strong> Las 14 variables no comparten
+una unidad común: <code>altitude_mean_meters</code> está en metros, los
+diez puntajes de catación están en una escala de 0 a 10,
+<code>Moisture</code> es una proporción (0 a 1) y
+<code>Category.One.Defects</code>/<code>Category.Two.Defects</code> son
+conteos de defectos. <span class="math inline">\(S\)</span> (sección 4)
+mezcla en la misma matriz metros², puntos² y conteos² — magnitudes que
+no son comparables entre sí, solo tienen sentido dentro de la unidad
+original de cada variable.</li>
+<li><strong>Diferencias de escala.</strong> El rango de
+<code>altitude_mean_meters</code> va de 0 a 2559 m, frente a 8.6–10 en
+los puntajes sensoriales, 0–0.20 en <code>Moisture</code> y 0–47 en
+<code>Category.Two.Defects</code>: cuatro órdenes de magnitud entre la
+variable de rango más amplio y la más angosta.</li>
+<li><strong>Diferencias de varianza.</strong> Esa diferencia de escala
+se traduce directamente en la diagonal de <span class="math inline">\(S\)</span>: <span class="math inline">\(\operatorname{Var}(\texttt{altitude\_mean\_meters})
+\approx 174\,656\)</span>, frente a <span class="math inline">\(0.13\)</span>–<span class="math inline">\(0.63\)</span> en los puntajes sensoriales, <span class="math inline">\(3.5\)</span>–<span class="math inline">\(27.9\)</span> en los defectos y apenas <span class="math inline">\(0.002\)</span> en <code>Moisture</code> — hasta
+ocho órdenes de magnitud de diferencia entre varianzas individuales. Por
+eso <code>altitude_mean_meters</code>, ella sola, explica el
+<strong>99.98 %</strong> de la varianza total calculada en la sección
+4.1: no porque sea la variable más relevante, sino porque su unidad
+(metros) produce números mucho más grandes.</li>
+<li><strong>Objetivo del análisis.</strong> El objetivo es entender la
+estructura conjunta de la calidad del café — el bloque sensorial, los
+defectos físicos y la altitud/humedad — dándole a cada dimensión un peso
+comparable a priori, no dejar que el resultado dependa de qué unidad
+arbitraria se usó para medir cada variable. Una prueba directa de que el
+resultado sin estandarizar sería un artefacto: si
+<code>altitude_mean_meters</code> se hubiera registrado en kilómetros en
+vez de metros, su varianza caería por un factor de <span class="math inline">\(10^6\)</span> y PCA sobre <span class="math inline">\(S\)</span> dejaría de estar dominado por la
+altitud — sin que nada real en los datos hubiera cambiado. Eso confirma
+que “PC1 = altitud” no sería un hallazgo genuino sino un accidente de
+unidades, y es la razón de fondo para estandarizar: solo así cada
+variable aporta la misma varianza (= 1) de entrada, y PCA queda libre
+para encontrar la covariación real entre calidad sensorial, defectos y
+altitud — que es lo que el análisis busca — en vez de limitarse a
+redescubrir en qué unidad se midió cada cosa.</li>
+</ul>
+<p>El taller aclara que <strong>no es necesario</strong> construir
+<code>Z &lt;- scale(X)</code> por separado antes de llamar a
+<code>prcomp()</code> — basta con <code>scale. = TRUE</code>. Aun así,
+se construye explícitamente para dejar a la vista qué es “estandarizar”
+y para verificar que coincide con lo que hace <code>prcomp</code>
+internamente:</p>
+<pre class="r"><code>Z &lt;- scale(datos)   # cada columna queda con media 0 y varianza 1: Z = D^(-1/2)(X - 1 x_barra^T)
+round(colMeans(Z), 12)   # ~ 0 en las 14 columnas</code></pre>
+<pre><code>##                Aroma               Flavor           Aftertaste 
+##                    0                    0                    0 
+##              Acidity                 Body              Balance 
+##                    0                    0                    0 
+##           Uniformity            Clean.Cup            Sweetness 
+##                    0                    0                    0 
+##        Cupper.Points             Moisture Category.One.Defects 
+##                    0                    0                    0 
+## Category.Two.Defects altitude_mean_meters 
+##                    0                    0</code></pre>
+<pre class="r"><code>round(apply(Z, 2, var), 3)  # 1 en las 14 columnas</code></pre>
+<pre><code>##                Aroma               Flavor           Aftertaste 
+##                    1                    1                    1 
+##              Acidity                 Body              Balance 
+##                    1                    1                    1 
+##           Uniformity            Clean.Cup            Sweetness 
+##                    1                    1                    1 
+##        Cupper.Points             Moisture Category.One.Defects 
+##                    1                    1                    1 
+## Category.Two.Defects altitude_mean_meters 
+##                    1                    1</code></pre>
+<pre class="r"><code># prcomp(datos, center = TRUE, scale. = TRUE) debe dar exactamente lo mismo que
+# prcomp(Z) sin volver a centrar/escalar (Z ya está estandarizada).
+pca_desde_Z &lt;- prcomp(Z, center = FALSE, scale. = FALSE)
+pca_directo &lt;- prcomp(datos, center = TRUE, scale. = TRUE)
+all.equal(unname(pca_desde_Z$x), unname(pca_directo$x))</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<p>Como se confirma arriba, ambos caminos son idénticos:
+<code>scale. = TRUE</code> dentro de <code>prcomp()</code> hace
+exactamente lo mismo que estandarizar primero con <code>scale()</code>.
+De aquí en adelante se usa
+<code>pca &lt;- prcomp(datos, center = TRUE, scale. = TRUE)</code> (el
+camino recomendado por el taller), pero matemáticamente es indistinto a
+haber trabajado sobre <code>Z</code>.</p>
 <blockquote>
 <p><strong>Teoría — PCA como problema de maximización
 (Lagrange).</strong> Se busca la dirección <span class="math inline">\(a\)</span> (con <span class="math inline">\(\lVert
@@ -3419,6 +3499,8 @@ explican más varianza que una sola variable original.</p>
 <pre><code>##  [1] 6.67688339 1.39567781 1.34376806 1.02201861 0.83546204 0.64931368
 ##  [7] 0.47385012 0.39905351 0.28269576 0.26037321 0.23810395 0.17742297
 ## [13] 0.15376684 0.09161005</code></pre>
+<pre class="r"><code>sum(pca$sdev^2 &gt; 1)  # número de componentes que cumplen el criterio de Kaiser</code></pre>
+<pre><code>## [1] 4</code></pre>
 <blockquote>
 <p><strong>Teoría — gráfico de codo.</strong> Grafica los <span class="math inline">\(\lambda_i\)</span> en orden decreciente. El “codo”
 es el punto donde la caída se aplana: a partir de ahí, cada componente
@@ -3427,26 +3509,65 @@ corte.</p>
 </blockquote>
 <pre class="r"><code>screeplot(pca, type = &quot;lines&quot;, main = &quot;Gráfico de codo - PCA café&quot;)</code></pre>
 <p><img role="img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAVACAMAAAC5gGOoAAAA8FBMVEUAAAAAADoAAGYAOjoAOmYAOpAAZrY6AAA6ADo6OgA6Ojo6OmY6OpA6ZmY6ZpA6ZrY6kLY6kNtmAABmADpmOgBmOjpmOmZmZgBmZjpmZmZmZpBmkJBmkLZmkNtmtrZmtttmtv+QOgCQOjqQZgCQZjqQZmaQZraQkDqQkGaQkJCQkLaQkNuQtraQttuQtv+Q29uQ2/+2ZgC2Zjq2kDq2kGa2kLa2tpC2tra2ttu227a229u22/+2///bkDrbkGbbtmbbtpDbtrbbttvb25Db27bb29vb2//b/7bb////tmb/25D/27b/29v//7b//9v////wPS8pAAAACXBIWXMAAB2HAAAdhwGP5fFlAAAgAElEQVR4nO3dfWMbZb4maBkCXsI0TLJh9oThDDBD754908y0c5juXmhDeg9h44Q43//brEuyLMkuvdl69NxVz3X9AXlxXD9LqvuW6nXyHoAmTWoPAEAdCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCgCgUQoAoFEKAKBRCoAjuPx2cuXj2mOwjSeqMQqAe3r5x8ddWEwef/n91q+96L7wo9eLP7j84ZOrPzn59L+/fve0+8WfDzXVWfkAO8Qipj/1jceffv969e/f/sv0wf3ws7uP7dn1P/rmYRNMLZ6G6z+480QxbgqA+7j84XQpwE6+2hIZXWh98PfF79/M//VHCuD6Ifx66W9fPlvzF8v/8gA/5NLTcP0nt58oRk4BcA9vnt3Kr0c/bfzy09WMX8Tfx+8VwO139JcvVv/i85V2vZj/8cNzevlpmLn9RDF2CoD9/XInvTbH0dlkdYvFTYhNniiAm7f614/BbDP8spVtZ4u/ffKwEVafhpnbTxRjpwDY23VwnHz16uo3r17cTalburRbSavzeeBdHny2IRXAdeS/ut6c9vHSt796cH97//73679ZevCmW21O/o8tj/hu7jwNd54oxk4BsK/rd6//cZ4/b2e/3+Od4/lB8qvXAAtgvi1+9iHqYqVOZ4/t0ser2UP3y/JHhnsr+DQwEAqAfZ31vivdJ0kUwK0NX2c3FfruVuLPHtubB3u2BejJ7Kse+mZdAaAA2NMsklYC8HzxhvR8lkw/fzKZfDg7Nuj3H6ZHNJ58en2o0GLL8/S73IrCy9lXP+62gCz8+l13uGLfQZHXXn7R/f3Xr2+l86/fnd79Zkv2WdqaRWyfrc+tn/ripgAWv7p2tpLSsy1Af771p7v8WFuehtlPsvnRYnwUAHtaSvu5N//bp//5b68Xf/vker9Al2M/L44XPfnn7is2FcDy0aWLg1+Wjjl61Buzb+df8Oin5XR++23PN1uyz9LWLGL7bP3WFsD0my/vUb84+cO//ngz3PxN+8XdJ2Hzj7Xtadj+aDFGCoD9zDZCrH3zOU2o2Rli0xw7nyzrNlpsKIDVA2Dmy7j7LW55sxRunyzS+c1pzze785PstrQ1i9g+2xrrCmC2bWft9qXrLUDzr+tdXu+PtfVp2PpoMUoKgP1siajz1ZxZiZVZJWwogLOVL77Ot4tJ358uuXvc5MeLQVf/bMUeS1uziO2zbXwUb+0D6H57a5P/bfMtQD2fFDb+WDs+DZseLUZJAbCfLRG1VABdUE3TqDtLbLYJ5Trylvc+LkXh9QEwV1/9cnFYzCyZpuca/3K69D1uL7LbADPfijGNr1mofv16fmLV7aOU9lnamkVsn22d1QK4uBXLaw+oWjxwa7+w98fa/jRse7QYJwXAflYL4NYb/ps/+PxOus/+3TeLf3W3AJb2bC6WcvPmeP61t7dPzN6dX78ZPrtJ5+WIPe97U7vH0tYsYvtsay1Nd/nqxeJo/80FcLMFaMMHsb4fa/vTsPXRYpwUAPvZqQBucvDyH398PMuSWWJtKoCVd8Vnj7/806v3tzd29+37XI60pUOULpZibPpNbm0v2Wdpaxaxfba1es4Ens63uQCWF7FmG1Dvj7X9adj2aDFSCoD97FQAPQm2vQAu+iJt9Q+X3gL3f8XicsZnS185/dNb2bzP0tYsYvtsa90tgOWtYOsKYPngzzVf2ftj3Vnwnadh26PFSCkA9rNLAdxJj8tf/+WTSW/y3C6A29tQbp2s1HMS1upXzL/g7m7bW2G5z9L6F7HDbGvdKYDrq+ltLICVTxxrtgFtvJ7z2qdh66PFSCkA9tMXPEulcH7nHejbH744vRUr/QXQe2LqrQ3SPdunV//Z/At6Iu3Jhn+2eWn9i9hhtqWcX/sXk8mHj7+cX0x14y721Y1M/duA1p7du/Fp2PpoMVIKgD31BM/tAlgKoF9WD0BUAEt/0bOZ5W69vlncLObWAZ5LD+iWH2vr06AAWqUA2FPPVv71BXB9SvDjL//2/+22D2D/TUCr/2x1E9CGFNtnaf2L2GG2vQtg5Xijm5E+++nWN1u4/RP0bwLa9jTstf+CEVEA7KnneMe1BTDbaPH94p/tvBN4fgWEvh2tPRvzN+8E7rPP0vbYCbw6294FcKdelxrh9llnU7e/x/ofa+PTsO3RYqQUAPuaZdST/j/p2V86+8odDwOdZ9/8gJfth1qu/LPFMZrbLnW5z9LWLOKhh4H2ffHtq4GeL9qjbwvQndTu/bG2Pw0uDNooBcC+rt/W3lwxbH5y7N0CWN6ysPzWdvuJYItsvXuy1a0jX5a3mlxvy15c2+b6+g4nf/jqx9vptsfS1ixi+2ybH8Petlg9keLN4gTjOwvoP/Ws58fa4WnY+mgxTgqAvV3M9ihOb1p1+esXK+9Fewqgu63570vXB91yKYhHP75//++LKxZcR+CGyy1c/7PvF5fsXHrDfFVTlz/33q9gn6WtWcT22dbZcCPM+R3BXi8etY8XM3xz+yt7twGt/li7PA3bHi3GSQGwv4vVY0pmTqap0nPAzLKlt6F3C6D/8my3v8edA9TXXKnt1gXQ7v67PZa27mJwW2dbZ0MBrLkn8N3dw9dZf3vLfc+PtcPTsPXRYpQUAPewdBX8udmRKrcKYPnAlcenq7nZUwD3vBz0u6Vp/rBYympN3f13+yxtzSIOdTno1blerD6yyxtpPr7zTe68V+/5sXZ4GrY+WoySAuA+LlcPLD/5auU9/yKTbpri5OulS8ysK4A1t2h5uXTTlf43zd/dBNebpXR+u/h33faPu/9sj6WtWcT22fptKoCVb3ozed81Ns56/qz3x9r+NGx/tBgjBcA9vf2X2amlj//wp6V7CN4+nOTyl+7uMNO7Qy6ORVlbAOtu0vj2j7PbLv64bpjpnogPr/7RSjpf367xZHEu1S37LG3NIrbP1mdzAVwt7I+zwW5uNNmzBWi+Dejujue7P9bWp2G60C2PFuOjAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAaNZ4CmFyrPQfAQIwmLycTDQCwj7HE5U3wawCA3YwkLZdiXwEA7GQkabmc+hoAYBcjCUsFALCvkYSlAgDY10jCUgEA7GskYakAAPY1krBUAAD7GklYOgwUYF9jSUsnggHsaTRp6VIQAPsZT1zKf4C9yEuARikAgEYpAIBGKQCARikAgEYpAIBGKQCARikAgEYpAIBGKQCARikAgEYpAIBGja0AXAwOYEejy0sNALCb0cWlAgDYzejiUgEA7GZ0cakAAHYzurhUAAC7GV9cagCAnYwvLRUAwE7Gl5YKAGAn40tLBQCwk/GlpQIA2Mn40lIBAOxkhGmpAQB2McKwVAAAuxhhWCoAgF2MMCwVAMAuRhiWCgBgF2MMSw0AsIMxZqUCANjBGLNSAQDsYIxZqQAAdjDGrFQAADsYY1YqAIAdjDIrNQDAdqOMSgUAsN0oo1IBAGw3yqhUAADbjTIqFQDAdqOMSgUAsN04o1IDAGw1zqRUAABbjTMpFQDAVuNMSgUAsNU4k1IBAGw10qTUAADbjDQoFQDANiMNSgUAsM1Ig1IBAGwz0qBUAADbjDQoFQDANmMNSg0AsMVYc1IBAGwx1pxUAABbjDUnFQDAFmPNSQUAsMVYc1IBAGwx2pzUAACbjTYmFQDAZqONSQUAsNloY1IBAGw22phUAACbjTcmNQDARuNNSQUAsNF4U1IBAGw03pRUAAAbjTclFQDARuNNSQUAsNGIU1IDAGwy4pBUAACbjDgkFQDAJiMOSQUAsMmIQ1IBAGwy4pBUAACbjDkkNQDABmPOSAUAsMGYM1IBAGww5oxUAAAbjDkjFQDABqPOSA0AsN6RIvL3f/z1x9fHWdQSBQCwXtGI/PWLD/5+9b/LH04nnUffl1xYDwUAsF7BiLz8bjLpCuDy28nc58f9FKAAANYrF5HT3L8qgOn/T54/f959DPi42OL6KACA9cpF5MVV3v/H17P/P+n+4PLfrorgz8WW10MBAKxXLiLPrnP/bPG+/8xHAIAYxRLy3dPZ2/35/ztvTicfHXUvgAIAWKtkAUwPAZr///2tX/eMctdDh1AAAGsVL4DLbx9QAA+dTgEArFUsIbuDf77pfnG22AR0MdlvE5ACACinXEKez84C6Db8X+/57TrhyT7fQgEAlFMuId89nUwe/fR+2gSzw0Bf7HsYqJ0AAOUUDMiL7syvT//06tW/XTXBV3/57nSy5wcABQBQUMmAfHN6e5/ufvmvAAAKKhqQ86vAXdv7YnAKAKCc0gH5+1+ef/H4yqdf/mn/U8AUAEA50QF5gPjWAABrROejAgAoJzofFQBAOdH5qAAAyonORwUAUE50PioAgHKi8/EQ6a0BAPpFx6MCACgnOh4VAEA50fGoAADKiY5HBQBQTnQ8HiS8NQBAr+h0VAAA5USnowIAKCc6HRUAQDnR6agAAMqJTkcFAFBOdDoeJrs1AECf6HBUAADlRIejAgAoJzocFQBAOdHhqAAAyokORwUAUE50OB4oujUAQI/obFQAAOVEZ6MCACgnOhsVAEA50dmoAADKic7GQyW3BgC4KzoaFQBAOdHRqAAAyomORgUAUE50NCoAgHKio1EBAJQTHY0HC24NAHBHdDIqAIByopNRAQCUE52MCgCgnOhkVAAA5UQnowIAKCc6GQ+X2xoA4LboYFQAAOVEB6MCACgnOhgVAEA50cGoAADKiQ7GA8a2BgC4JToXFQBAOdG5qAAAyonORQUAUE50LioAgHKic1EBAJQTnYuHTG0NALAqOhYVAEA50bGoAADKiY5FBQBQTnQsKgCAcqJjUQEAlBMdiwcNbQ0AsCI6FRUAQDnRqagAAMqJTkUFAFBOdCoqAIByolPxsJmtAQCWRYeiAgAoJzoUFQBAOdGhqAAAyokORQUAUE50KCoAgHKiQ/HAka0BAJZEZ6ICACgnOhMVAEA50ZmoAADKic5EBQBQTnQmKgCAcqIz8dCJrQEAFqIjUQEAlBMdiQoAoJzoSFQAAOVER6ICACgnOhIPHtgaAOBGdCIqAIByohNRAQCUE52ICgCgnOhEVAAA5UQnogIAKCc6EQ+f1xoAYC46EBUAQDnRgagAAMqJDkQFAFBOdCAqAIByogNRAQCUEx2IBeJaAwBci85DBQBQTnQeKgCAcqLzUAEAlBOdhwoAoJzoPCyR1hoAYCY6DhUAQDnRcagAAMqJjkMFAFBOdBwqAIByouNQAQCUEx2HRcJaAwBMRaehAgAoJzoNFQBAOdFpqAAAyolOQwUAUE50GpbJag0A0IkOQwUAUE50GCoAgHKiw1ABAJQTHYYKAKCc6DBUAADlRIdhoajWAADvFQBAs6KzUAEAlBOdhQoAoJzoLFQAAOVEZ6ECACgnOgtLJbUGAFAAAM2KjkIFAFBOdBQqAIByoqNQAQCUEx2FxYJaAwAoAIBWRSehAgAo5zhJePmPv/7tt/3/mQIAKKdcEv7+ah75L59NOiefv97zWygAgHKKJeG7p5MP/t794vLFZO7km/2+hwIAKKd8AZx1yf+H58+/6CpgvwYol9MaAKB4AVxcxf5s28/bbyfXnbArBQBQTvECuPoA8PH1H11eNcCTfb6HAgAop3QBdKF/s93n6tPAR/vsCFYAAOWULoCbXQFLf7ZulB6lplMAAAoAoFFH2Adw8uf5n7053W8vcMGY1gBA80oWwMn/fD/d7n+z4zdnH4ACAChZAFc+/M8//rebjwDdH4UcBaQAAAoXwMx0u8/lz6c55wEoAICCOXj56w9fnC4KoGuExe6AnSgAgHJK5+C0BeYF8Oin/f5xyZTWAEDrjheDl/9rz/hXAAAlRcegAgAoJzoGFQBAOdExqAAAyomOQQUAUE50DBYNaQ0ANC46BRUAQDnRKagAAMqJTkEFAFBOdAoqAIByolNQAQCUE52CZTNaAwBtiw5BBQBQTnQIKgCAcqJDUAEAlBMdggoAoJzoECwc0RoAaFp0BioAgHKiM1ABAJQTnYEKAKCc6AxUAADlRGegAgAoJzoDSye0BgBaFh2BCgCgnOgIVAAA5URHoAIAKCc6AhUAQDnREagAAMqJjsDiAa0BgIZFJ6ACACgnOgEVAEA50QmoAADKiU5ABQBQTnQCls9nDQC0KzoAFQBAOdEBqAAAyokOQAUAUE50ACoAgHKiA1ABAJQTHYBHiGcNADQrOv8UAEA50fmnAADKic4/BQBQTnT+KQCAcqLz7xjprAGAVkXHnwIAKCc6/hQAQDnR8acAAMqJjj8FAFBOdPwpAIByouPvKOGsAYBGRaefAgAoJzr9FABAOdHppwAAyolOPwUAUE50+ikAgHKi0+842awBgDZFh58CACgnOvwUAEA50eGnAADKiQ4/BQBQTnT4HSmaNQDQpOjsUwAA5URnnwIAKCc6+xQAQDnR2acAAMqJzj4FAFBOdPYdK5k1ANCi6OhTAADlREefAgAoJzr6FABAOdHRpwAAyomOPgUAUE509B0tmDUA0KDo5FMAAOVEJ58CACgnOvkUAEA50cmnAADKiU6+4+WyBgDaEx18CgCgnOjgUwAA5UQHnwIAKCc6+BQAQDnRwacAAMqJDr4jxrIGAJoTnXsKAKCc6NxTAADlROeeAgAoJzr3FABAOdG5pwAAyonOvWOmsgYAWhMdewoAoJzo2FMAAOVEx54CACgnOvYUAEA50bF31FDWAEBjolNPAQCUE516CgCgnOjUUwAA5USnngIAKCc69RQAQDnRqXfcTNYAQFuiQ08BAJQTHXoKAKCc6NBTAADlRIeeAgAoJzr0FABAOdGhd+RI1gBAU6IzTwEAlBOdeQoAoJzozFMAAOVEZ54CACgnOvOOncgaAGhJdOQpAIByoiNPAQCUEx15CgCgnOjIUwAA5URHngIAKCc68o4eyBoAaEh04ikAgHKiE08BAJQTnXgKAKCc6MRTAADlRCeeAgAoJzrxjp/HGgBoR3TgKQCAcqIDTwEAlBMdeAoAoJxjBd7lP/76t9f7/iMFAFDOsQLv3dPJB3/f9x9ViGMNADRDAVRfJEAd5fLu91fLfr0qgB+v/v/bPt9CAQCUUyzvrt7y99nrY4ACAChHAVRfJEAd5fLul9PJ5OT53D+dTk7+cPX/L/c5FEgBAJRTMO/efjuZPPrp+jc77ATu+8BQbrr1Uxx/mQA1FI27n6/e9v/z7JcKACBM2bh7+2wy+Wj6IWAoh4EqAKAZhePu8t8mk5Ov3ysAgDjF4+7N1YeAz14rAIA05ePu8sXVh4DvB1MAGgBoxTHSrjsg9A+nCgAgyqa064L7s582fMGuugNC9zwHbEoBAJTTm3Yvn3VhfT49EPPkz4dYzM+nCgAgS1/anU/D+s3pPS7esNbbP+53EvCUAgAopyft3szerU9r4PLbyeTJ8ae6pgAAyulJu6vk/+j1+y76P37//mL630rqZLEGANpwN+yukr/b7t99DvjmnidwHYoCACjnbthdR/75bP+vAgAYqbUFcDbb/asAAEZqXQFc7wLotgR9tPfRO4eiAADK6d0HMPlmvgug+yBgJzDAGPUfBfTox/823QLUXcxz2gN1VIpiDQA0oSfr5nfzfTL7Vb0PAAoAoKC+rJudA/zR9BrOk8+r7QFQAAAl9Wbd5cvnX/549f93//tnPx55nhUKAKCc6KxTAADlRGddrSTWAEAL1kXd73/9699ev7/87ajD3KYAAMrpj7pfPpldB/rd00eHuCHMfSkAgHJ6o+7F/EYA754e6IYw96MAAMpZc0OYyaP/+/T6ghD1rgShAAAKWnNDmK+v3vx3F4GbXReiFgUAUE5P1M0u/zMrgBZvCFNzwQDHs/aGMNcF0ODVQGsuGOB41t4P4LoAGrwfQM0FAxyPAohaMMDx2AQUtWCA4+nfCfzkpgDO7QQGGKeepLu4PgesK4CLFm8IU3XJAMfSE3Tdsf8n33cFML0hWIMngikAoAV9QTe/JdhUi5eCUABAC/pvCPPtTf43eTE4BQC0YE3Qvf2uux7oSd0bgikAgIKig65iDGsAYPSic04BAJSzJucu/9/u2J93/+lf6x0C9F4BAJTUm3Nvv5jMrwNx8s9HHmiZAgAopy/nLk4nNwUwPSu4FgUAUM6aG8KcfD7d9vP7i6onAigAgHL6rwW0OPv3rMlrAVVeNsAxrL0a6LU2rwZaedkAx7D2fgC9vzsyBQBQjgIIXDbAMfRuAlq6AvRFzcuBKgCAcnpi7nzpyJ/uiKB6x4EqAIByemJuevT/Z9+/evXqH9+1ej+A2gsHKK8v5bq3/Y3fD6D2wgHK678UxHc3+f9ZzYsBKQCActZdDO4ff3z+/PmX31e9FpwCACgoOuUUAEA50SlXN4M1ADBu0SGnAADK6Q+56R6AuS+bPBGs9tIBStt6GOik0UtB1F46QGlr7gegAGovHaC0/ktBTD7906sbvx1/qmsKAKCc/ovB1bsHzIrKEawBgFHrvRx0zcs/LFMAAOVsux9AVQoAoJzeTUAKIGHxAGX17wT+5u6f1qAAAMrpvx9AyEcABQBQzpoTwU6+enX0Ue6qncC1lw9QUu9OYCeCZSwfoCQFELx8gJJ6CuCLx6s+VQAAIxQdcbUDuPbyAUqKjrjqAVx9AIByohOuev5WHwCgnB0S7lWjN4RJGACgnN6Eu/zLze3AHn/S8FFA9QcAKKcv4S7cESxlAIBydrgj2Gc2AQGM0Jo7gn32l6eTk//yw7PJ5KTiheHq52/9CQBK6b8j2JP378+m1wS9KoOPqn0ACIjf+hMAlLL2jmDn0xro2qDeR4D68Vt/AoBS1t4R7GJ2Z+CLmjcIrh+/9ScAKGVtAbw5nW78ufpdvW1A9eO3/gQApay9JeR18le9O0z9+K0/AUApPQF3Nt0HsOiBlgsgYQSAMvoPA+02+88OA7qoeRhQQPoGjABQRv89gbvQv4r+D37896dt7wROGAGgjN5LQUwv/9AdAdrptgdVEpC+ASMAlNGbby+fTTf/P5vm/9fHHmkhIH0DRgAoY2O+vXz+/KvfjjVJj4T0TZgBoIToeEsI34QZAEqIjreE8E2YAaCE6HhLCN+EGQBKWI632Ulf3VGgbggTNQNACQpgADMAlLBSAF88/vTv3X9Xfdp0AWQMAXB40ekWkb0RQwAcXnS6RWRvxBAAh9eTbi8efX/8OXpFZG/EEACH13s/gIqX/1kRkb0RQwAc3to7giXIyN6MKQAObe0dwRJkRG/GFACHtv6GMAEyojdjCoBD6wu3X04nj/706uij3JURvRlTABxazyagPz7/J2cCL8mYAuDQencCuxTEsowpAA6tpwBcCuKWkDEADis620KSN2QMgMOKzraQ5A0ZA+CworMtJHlDxgA4rB2y7dXr8mP0C0nekDEADqs32y7/8nzu8SfNHwWUMgbAYfVl28Wpw0BXpMwBcEg90fZmNf8nn7W+CShmDoBD6r8W0OSzvzydnPyXH55NJiffHH+ouZTgTZkD4JB6rwY6efL+/dlk8s20DD6q9gEgJnhT5gA4pN5LQXQ3hDmf1kDXBvU+AqQEb8ocAIe09oYwF7OLQl/UvDZ0TPDGDAJwOGsL4M3pdOPP1e/qbQOKyd2YQQAOZ+0dwa6Tv+oNImNyN2YQgMPpSbaz6T6ARQ8ogJxBAA5n/S0hZ4cBXdQ8DCgmd2MGATicnmTr7ghzFfpX0f/Bj//+1E7g90GDABxO76Ugppd/6I4A7XTbgyrJyd2cSQAOpTfYXj6bbv5/Ns3/r4890kJO7OZMAnAoG4Pt5fPnX/12rEl65MRuziQAh7ISbDXDvk9O7OZMAnAoy8H27umj76sN0icndnMmATiU1QKYTE4+D/oYkBO7OZMAHMrtArjy4df1rv+5Kih2g0YBOIzVXPv1i+t7wPxUaZxVQakbNArAYdzOtctfPsn5GBCUukGjABxGT679/uI05GNAUOoGjQJwGP25dr0pqPbHgKDUDRoF4DDW5dp8U1DVjwFJqZs0C8AhbIi1601BHx7kWhC//vVv+x9fmhS6SbMAHMLmWPv1u8nkQfcDeDXdhnT5w7RK9j7NLCl0k2YBOIQtsXb5wyf3L4C3XX08+vP01gIzn+85XFDoJs0CcAibYu3y5fR6oPctgDen15eTvrj676fPn3e/fbLfcEGhmzQLwCGsj7WXsyOBTq0uCkAAABr8SURBVL6655FA0/OKH39y9Rng2eyeApcv9r25QFLoJs0CcAhrYm268f9hBwGdX312+On6c8A30z/pbjGz10eAqNCNGgbg4fpS7e13s403j75/wGkAXdpPc/98cVfhfW8wHJW5UcMAPNydVPv9h+tN9w+8LOi7p9c7D64+Anx8+8/6R+nxoBEOK2oYgIdbTbXuoJ+pT3986De+CfurXygAgDzLqXZzG/j77vdddhX2sz2+l//18X+4/n5XHwb2OqQoKnOjhgF4uLv3AzjUxR/O7u7xPZ/cfBjYSVTmRg0D8HC3CuBB+31XXdw56PPt0yEfBRQ2DcBDrRTA/3nI20FONyj9h0WfTK8HsddBQGGRmzUNwEMVDLV3z1bOIp7ecXiv88DCIjdrGoCHKhlqV+/5Vwvg0Z67F7IiN2sagIc6Xqhd/q+99y5nRW7WNAAPFR1qYZEbNg7Aw0RnWljiho0D8DDRmRaWuGHjADxMdKaFJW7YOAAPE51pYYkbNg7Aw0RnWljiho0D8DDRmZaWuGnzADxEdKSlBW7aPAAPER1paYGbNg/AQ0RHWlrgps0D8BDRkZYWuGnzADxEdKSlBW7aPAAPER1pcYEbNxDA/UUnWlzexg0EcH/RiRaXt3EDAdxfdKLF5W3cQAD3F51ocXkbNxDA/UUnWl7e5k0EcF/RgZYXt3kTAdxXdKDlxW3eRAD3FR1oeXGbNxHAfUUHWl7c5k0EcF/RgZYXt3kTAdxXdKAFxm3gSAD3E51ngWkbOBLA/UTnWWDaBo4EcD/ReRaYtoEjAdxPdJ4Fpm3gSAD3E51niWmbOBPAfUTHWWLYJs4EcB/RcZYYtokzAdxHdJwlhm3iTAD3ER1niWGbOBPAfUTHWWLYJs4EcB/RcRYZtpFDAewvOs0iszZyKID9RadZZNZGDgWwv+g0i8zayKEA9hedZpFZGzkUwP6i0ywyayOHAthfdJplZm3mVAD7ig6zzKjNnApgX9Fhlhm1mVMB7Cs6zDKjNnMqgH1Fh1lm1GZOBbCv6DALjdrQsQD2E51loUkbOhbAfqKzLDRpQ8cC2E90loUmbehYAPuJzrLQpA0dC2A/0VkWmrShYwHsJzrLUpM2dS6AfURHWWrQps4FsI/oKEsN2tS5APYRHWWpQZs6F8A+oqMsNWhT5wLYR3SUpQZt6lwA+4iOstigjR0MYHfRSRabs7GDAewuOsliczZ2MIDdRSdZbM7GDgawu+gki83Z2MEAdhedZLk5mzsZwK6igyw3ZnMnA9hVdJDlxmzuZAC7ig6y3JjNnQxgV9FBlhuzuZMB7Co6yHJjNncygF1FB1lwzAaPBrCb6BwLTtng0QB2E51jwSkbPBrAbqJzLDhlg0cD2E10jgWnbPBoALuJzrHglA0eDWA30TmWnLLJswHsIjrGkkM2eTaAXUTHWHLIJs8GsIvoGEsO2eTZAHYRHWPJIZs8G8AuomMsOmSjhwPYLjrFojM2ejiA7aJTLDpjo4cD2C46xaIzNno4gO2iUyw6Y6OHA9guOsWiMzZ6OIDtolMsO2OzpwPYJjrEsiM2ezqAbaJDLDtis6cD2CY6xLIjNns6gG2iQyw7YrOnA9gmOsSyIzZ7OoBtokMsPGLDxwPYLDrDwhM2fDyAzaIzLDxhw8cD2Cw6w8ITNnw8gM2iMyw8YcPHA9gsOsPSEzZ9PoBNoiMsPWDT5wPYJDrC0gM2fT6ATaIjLD1g0+cD2CQ6wtIDNn0+gE2iIyw9YNPnA9gkOsLiAzZ+QID1ohMsPl/jBwRYLzrB4vM1fkCA9aITLD5f4wcEWC86weLzNX5AgPWiEyw+X+MHBFgvOsHy8zV/QoB1ogMsP17zJwRYJzrA8uM1f0KAdaIDLD9e8ycEWCc6wPLjNX9CgHWiA2wA8TqAEQH6RefXANJ1ACMC9IvOrwGk6wBGBOgXnV8DSNcBjAjQLzq/BpCuAxgRoF90fg0gXQcwIkC/6PwaQroOYUaAPtHxNYRwHcKMAH2i42sI4TqEGQH6RMfXEMJ1CDMC9ImOryGE6xBmBOgTHV+DCNdBDAlwV3R6DSJbBzEkwF3R6TWIbB3EkAB3RafXILJ1EEMC3FU0vS5/+OLxH/719c3v3z2dfPD3Pf79ILJ1EEMC3FUyvX4+nXROvppXgAIAyFEwvc4ncx9dN8AoC2AgUwLcVi683ly9/3/0/atXP3T/n8W+AgDIUS68zufv/N8+mzeAAgDIUSy8Lr+dTL5Z/HLaBQoAIEex8FoO+64BPn6/rQAmPUpNd0jDmBLgtqMUQPebyRMFAJDkOAXQ7RE++fNINwENZUyAVcfYB9C5mEw++EkBAOQoehTQx6u//eD/UQAAMcqeB/DZb4vfv5hu1FcAACEKnwm8nPcvFABAkJLZ9cvpat5f/X6UBTCYOQGWlb0a6MsvX6/8/sWpAgAIER1dQwnWocwJsCw6uoYSrEOZE2BZdHQNJViHMifAsujoGkqwDmVOgGXR0TWYYB3MoAAL0ck1mFwdzKAAC9HJNZhcHcygAAvRyTWYXB3MoAAL0ck1mFwdzKAAC9HJNZhcHcygAAvRyTWcXB3OpABz0cE1nFgdzqQAc9HBNZxYHc6kAHPRwTWcWB3OpABz0cE1nFgdzqQAc9HBNaBYHdCoADPRuTWgVB3QqAAz0bk1oFQd0KgAM9G5NaBUHdCoADPRuTWgVB3QqAAz0bk1oFQd0KgAM9G5NaRUHdKsAJ3o2BpSqA5pVoBOdGwNKVSHNCtAJzq2hhSqQ5oVoBMdW0MK1SHNCtCJjq0hheqQZgXoRMfWoEJ1UMMCKIDDGdSwAArgcAY1LIACOJxBDQugAA5nUMMCKIADGta0ANGhNaxIHda0ANGhNaxIHda0ANGhNaxIHda0ANGhNaxIHda0ANGhNaxIHda0ANGhNbBIHdi4QOuiM2tgiTqwcYHWRWfWwBJ1YOMCrYvOrIEl6sDGBVoXnVkDS9SBjQu0LjqzBpaoAxsXaF10Zg0tUYc2L9C26MgaWqAObV6gbdGRNbRAHdq8QNuiI2togTq0eYG2RUfW0AJ1aPMCbYuOrMEF6uAGBloWnViDy9PBDQy0LDqxBpengxsYaFl0Yg0uTwc3MNCy6MQaXJ4ObmCgZdGJNbg8HdzAQMuiE2t4eTq8iYF2RQfW8OJ0eBMD7YoOrOHF6fAmBtoVHVjDi9PhTQy0Kzqwhhenw5sYaFd0YA0vToc3MdCu6MASpwDlREesAgAoJzpiFQBAOdERqwAAyomOWAUAUE50xCoAgHKiI1YBAJQTHbEKAKCc6IhVAADlREesAgAoJzpiFQBAOdERO8ACmFyrPQfAVtFJNbwcnUw0ADAU0UE1uBi9CX4NAOSLzqmhpehS7A9tdKBB0Tk1tBRdnndoswPtiY6poYWoAgCGJDqmhhaiCgAYkuiYGlqIphSAI5GAXUSHxNAibH0BTHoUHEMDADuIzoihJdh+BVCqExyLCuwmOiKGFmB7HQZaqhMciwrsKDoiBhdgD3zzfZBOSNkRAcSLTojh5dfBN7/v3wkKANhRdEIMML8OnP+bFqEAgIeJTgj5dQ8KANhRdELIr3tQAMCOohNCft2DAgB2FJ0Q8useHAYK7Cg6IgTYfTzwWFSgGdERIcDu5eDHogLjFJ0REux++vNfIwCroiNBYB2STwXAqug8kFYHpgOAJdFhIKoOTwUAc9FRIKiK0AHAVHQOSKlCbAoC3iuAZukAIDoB5FNROgAaF736C6fSdAC0LHrdl0xHoAOgWdErvlg6DhUAbYpe7YXS0egAaFD0Oi+RjsimIGhO9Aovjo5LB0Bbotd2WXR0OgAaEr2qC6IadAC0Ino9l0KVqABoQvRaLoPq0QEwftGruACqyaYgGLvo9Vv6VKYDYNSiV27RU58OgPGKXrPlTgQdACMVvVoLnRQ6AMYoep2WOEFUAIxO9Botb7LoABiX6NVZ2KSxKQjGJHpdljSBdACMRvSKLGYy6QAYh+i1WMbE0gEwAtGrsIBJpgNg6KLXX+kSTgXAoEWvvbIlnw6A4YpedQXLENgUBEMVvd5KlYHo7YCJZoBw0aun8BiOO1E/mWgACBe9dsqO4boJfg0AsaJXTtExWEux71mEVNErp+gYrOWnztMIoaLXTckxWAoABiB63ZQcg6UAYACKrZvvnk76fPD3fYaTHEOlAGAAFAAlKAAYgHLr5ttnexZA35cXm46yFAAMQMF18/LbyeTJHl+vAEbEYaAwACVXzq4Bvin4/Qm27kQwxQ45iq6K757ut82fEVnzMc7HO8hRdi282G8jEGOyIee1AEQouwJefusjAGtoAait8Lr35vnz/1F2CQyaFoCKrHZUpwWgDmscGbQAHJ2VjSBaAI7JekYaLQBHYhUjkvPBoTwrF7m0ABRlvSKdFoBCrFIMghaAw7M2MRxaAA7KisTAaAE4FOsQQ6QF4ACsPgzWDi2gJWADawbDtrEFfE6ATawYjMCaFpisuS0ZMGW9YCzuFMDEjYlhI+sFo7Wc+hoA7rJaMFoKADazWjBaCgA2s1owWgoANrNaMFoKADazWjBaCgA2s1owWg4Dhc2sF4zX2hPBnB0MHSsBI7buUhCuJQcdr3/GbFPMawGa56VP07QALfOqBy1Ao7zgYUoL0B6vdVjQAjTFyxxu0QK0wisc+mgBGuDFDWtN1ACj5mUNm2kBRssrGnahBRghL2bYmRZgXLyOYT9agNHwEoZ70AKMgVcv3NeuLaAqCOU1CQ+yvQV8WCCVlyQ83KYWmKy7LQ3U5hUJB9LfAhM3piSWVyQcUk8B9P8a6vOChKIUALm8IKEoBUAuL0goSgGQywsSilIA5PKChKIUALm8IKEoh4GSyysSylp7Ipizg6nNyw8KW3eWsDvNUJsXHpS2KeW1ABV5zUF9WoAqvNwghBbg2LzSIIlNQhyR1xjE0QIch5cXhNIClOaVBcm0AAV5UUE8m4Qow8sJhkELcHBeSTAkWoAD8iKCwfFhgMPw8oFh0gI8mFcODNnOLaAruMvLAQZvhxbwaYEeXg0wDhs3CU3W3ZSApnkxwIisaYGJ25LRx4sBRqenAPp/TeO8FmD8FAC9vBZg/BQAvbwWYPwUAL28FmD8FAC9vBZg/NYXwGTj0aOMnKccxm/9YaCTdY4+IxV4mqEBO50IdoQyUC9ZPBHQgn3TvEwZ+IARxvMATXhA8h6sDHb6HMIReRqA3T2kDCYuSJHG0wDcz75l4GDUOJ4F4OF2KQMFEMezAByWAhgMzwJwHAogjmcBOA4FEMezAByHAojjWQCOY/1hoE4Qq8TjDRzJ2hPBHn6OGfficQaOZYdTBTTBMXl4gaPZNdZ3P7uMh/CoArkUQVEeTWAANEEJHkRgQBTBIXnwgCG6fxNojhseA2DI9t5f7LPDgocAGIUdi2Cy7mSEFnkEgHHZ2ASTtacjH1nExxAFAIzTmgLo//WxZWyIUgBAQ0IKIGRDlAIAGpJRACkbohQA0JD1BdBzONH9DjN90BTHpQCAhjygAA5YEAoA4OjuH72HLAgFAHB0k2Jb3xUAQLZJwvE3CgCggntttD/4DP2/Pvoc9RYNUEH9/HcYKECzIjZEKQCAChI2RCkAgBoS8l8BALRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0SgEANEoBADRKAQA0amQFMAEYjOqJWXuAQ6r9ZALso3pm1h7gkOo/nJ2IKSKGyJgiYoiMKSKGyJgiYoiAKaoPcEj1H85OxBQRQ2RMETFExhQRQ2RMETFEwBTVBzik+g9nJ2KKiCEypogYImOKiCEypogYImCK6gMcUv2HsxMxRcQQGVNEDJExRcQQGVNEDBEwRfUBDqn+w9mJmCJiiIwpIobImCJiiIwpIoYImKL6AIdU/+HsREwRMUTGFBFDZEwRMUTGFBFDBExRfYBDqv9wdiKmiBgiY4qIITKmiBgiY4qIIQKmqD7AIdV/ODsRU0QMkTFFxBAZU0QMkTFFxBABU1Qf4JDqP5ydiCkihsiYImKIjCkihsiYImKIgCmqD3BI9R/OTsQUEUNkTBExRMYUEUNkTBExRMAU1Qc4pPoPZydiioghMqaIGCJjioghMqaIGCJgiuoDHFL9h7MTMUXEEBlTRAyRMUXEEBlTRAwRMEX1AQ6p/sPZiZgiYoiMKSKGyJgiYoiMKSKGCJii+gCHVP/h7ERMETFExhQRQ2RMETFExhQRQwRMUX2AQ6r/cHYipogYImOKiCEypogYImOKiCECpqg+wCHVfzg7EVNEDJExRcQQGVNEDJExRcQQAVNUH+CQ6j+cnYgpIobImCJiiIwpIobImCJiiIApqg9wSPUfzk7EFBFDZEwRMUTGFBFDZEwRMUTAFNUHOKT6D2cnYoqIITKmiBgiY4qIITKmiBgiYIrqAwBQhwIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGiUAgBolAIAaJQCAGjUuArg3dMP/l51gMsfHk8mkw8/+6nqFC+/6Ib46nXVIWbenE6+qbf0y28nNyqO8f7yl+5l8fjras/I+WTFk1pzvH//63enk8lJ6yvIalC9rfiYjKoArtb3ugXwy+l8Ffu83hA3qXdSM/Nm3j2tmrzd4gMK4M38ZfGo1qszpQAuX1QfYXkF+XO9CZaCap4aJ/9cYZQxFcDl2aRuAVwsrWMf1xoi5V3v1FndIZafkHpj3OT/ZPJRpTedKQVwFjBD/RVkNaguqo4zogKYPrE1C6B7v/nox6tf/Pqs4ruLq3X9pPtw++/P6uXN3EXlFjoP6MDpy+Lk627z4GnVN77Xziu+OemqsNvS8fbbuivIzRBV4mI1qKap8dMsNCqMM54CeDl9n1WzAC5uVq3uKa60ll0t+nrVunplVVvJ3s8nqFsAZ5U3CU6d37wqL+pXct0ZFuVzVq0Luxflk5pD3Aqq8/kT0oXG8ccZSwG8fdb1+rOqK/zZIuyu3upUWs2uljyvntrvf7stnf9XzRmuBqgeuEuNvPzLWuq+Kzi7WfhFtXdISw149WAcPS9uB9XSa6JKaIylALoNH19X3wl84+qlVT96zioXQFdAVUvo6lmotrXjxlIjB6j3znu29PoFcL70CJwdvw1vB9VSUlR5fzCaAjj5/HX9o4BuJBRAjfc3y66S70ndTyFXKfPN2+6Iv0+/rzZDN0T9Df9zlTdCrWwCqvS6WH5FVnh13g6q5Sas8aCMpQB+717WOQVQ7w3O3HSXY9Vj36fbX6oWwPnk5J+uj6/4rOZ2729mR3p/+HWtGeZqb4Pqtr9P979+V/WAqJtXZIXPQ7eDavn9QY2VZSwFMBVTANX3v04PtzupGjizj9dVC2DpoMN6b3y7x2F+FGa18wCu1TwCaGq6BbzuQ7H03mxpf/BxLQXV8gpS48OiAijhrPaKNo2+D+udeXrzYq5ZAN1hFdMjYrs3nNW2w5wtPoZUPk2l/vuS2bGXdT+Rdal//c7ovNbLQgGUEVIA1U9Ie3/5Xx9/cVrzbe/NTpCaBbCUd+fVnpHZaUfddo/fX9Q8P7BTf8Pk4oS0eh9PuzdHn/92/bZAARx7gSVlFMBlzbNclnQft6ut7/Mj8Gsfinqte04qnfX57SJlLuq+MGrvAZjlf5e90y6s9bpYuj7IcwWgAA7tbc3TgFdU/MR/87IOKYCVg/+O62zpg1jdA3PrnZxybenKUL9U/JA83xFx8nWtI7QUQBkJBdCd7V57X99ctdRbHPueUgD1DsZcPtKk7iGh9UrwWu1DHucuf/nkKv6vPorUenU6CqiMgAKYfsitfQbAXLW8uXXtsYAD4etF73lKAURsAVo+BL/+q6LCiWBTzgMoo34BVDuuoJcCWJ6o0hvO5TW8aupV3wJUfXPHbdVOlXQmcBnVC+C8/ub/1TPdK6VeRgEsPRQVd4dc5e7Ni7LqPoD677lrv9udWurBakdFLQWVawEdUO0CuHpBfVD3VkfTV1H9Yx8Xau4DWETvZc0TM7plz9brmns+623vWHizODm93gFRiwPC3la7W9FyULka6OFULoCA82yuD0L9uvbZTzeqnwjWPRRV788wOyzgx+tjH6vuAqj+dmB+CH7VUyLOr2/P0N2Iq94121fvB/Cj+wEcQuXX+OqGj1qJ83bpNoj1L0NZ9SigpVtxVT76Zq7iRviQ6xPeqHao3NIQtdJiJajcEexg6hbA8q3mKhbA0vVWAg5HqnsY6Jv5Q1Hldqs3fp4XUb0LICTsA36/vI5UnOVmBXlUa3vtalD97J7AB1K3AJbf3tQsgPfvX3aXQP7ws9q7IzqVzwO4nD0UX/1WcYYrv//QHXj+6Y81Zwi5L8Gv3TVKTj6r+lBcdk9HzWuE3wqq6bViT+qsr6MqAAB2pwAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABqlAAAapQAAGqUAABr1/wP51yi7MIHbmwAAAABJRU5ErkJggg==" width="768" style="display: block; margin: auto;" /></p>
-<p><strong>Decisión: se conservan k = 4 componentes.</strong></p>
-<p>Justificación:</p>
+<p><strong>Decisión: se conservan k = 4 componentes.</strong>
+Justificación, criterio por criterio:</p>
 <ul>
-<li>El gráfico de codo muestra una caída muy pronunciada entre PC1 y PC2
-(de varianza ≈ 6.68 a ≈ 1.40), y luego un descenso mucho más gradual —
-el “codo” técnico está en PC2, pero solo PC1–PC2 explican el 57.7% de la
-varianza, una fracción algo baja para representar 14 variables
-originales.</li>
-<li>Con k = 4 se acumula <strong>74.6%</strong> de la varianza (PC1 =
-47.7%, PC2 = 10.0%, PC3 = 9.6%, PC4 = 7.3%).</li>
-<li>Cada una de esas cuatro componentes tiene una <strong>interpretación
-clara y distinta</strong> en el contexto cafetero (ver sección 7):
-calidad sensorial general, defectos físicos, uniformidad/dulzura, y
-altitud/humedad. A partir de PC5 la varianza explicada individual cae
-por debajo de 6% y las cargas dejan de tener un patrón fácil de
-nombrar.</li>
-<li>El objetivo del análisis es exploratorio/interpretativo, no una
-reducción agresiva para un modelo predictivo, por lo que priorizamos
-interpretabilidad sobre minimizar k.</li>
+<li><strong>Varianza explicada (individual).</strong> PC1 explica el
+47.7 %, PC2 el 10.0 %, PC3 el 9.6 % y PC4 el 7.3 %. A partir de PC5 la
+varianza individual cae a 6.0 % y sigue bajando de forma monótona (PC6 =
+4.6 %, …, PC14 = 0.7 %): ninguna componente después de la cuarta alcanza
+siquiera lo que aportaría “una variable original” por sí sola (<span class="math inline">\(100\%/14 \approx 7.1\%\)</span>), mientras que las
+cuatro primeras sí lo superan.</li>
+<li><strong>Varianza acumulada.</strong> Con k = 4 se acumula
+<strong>74.6 %</strong> de la varianza total. Es una fracción razonable
+para resumir 14 variables en menos de un tercio de las dimensiones
+originales sin perder información sustancial. Pasar a k = 5 solo suma
+6.0 puntos porcentuales más (80.5 % acumulado) a cambio de una
+componente bastante menos interpretable (ver más abajo): el costo
+marginal de una componente adicional deja de compensar el
+beneficio.</li>
+<li><strong>Gráfico de codo.</strong> El <em>scree plot</em> muestra una
+caída muy pronunciada de PC1 a PC2 (λ: 6.68 → 1.40) y luego una meseta
+mucho más plana. El “codo” visual más marcado está, en sentido estricto,
+en PC2 — pero detenerse ahí dejaría solo 57.7 % acumulado, insuficiente
+para representar 14 variables originales. El gráfico se usa como apoyo
+visual de la tendencia general, no como criterio único.</li>
+<li><strong>Criterio de Kaiser (<span class="math inline">\(\lambda_i
+&gt; 1\)</span>), como chequeo independiente.</strong> Los valores
+propios son <span class="math inline">\(6.68,\ 1.40,\ 1.34,\ 1.02,\
+0.84,\ 0.65,\dots\)</span>: exactamente <strong>4</strong> superan 1
+(PC4 = 1.02, justo por encima del umbral; PC5 = 0.84, ya por debajo). El
+criterio de Kaiser, calculado de forma completamente objetiva, coincide
+exactamente con k = 4.</li>
+<li><strong>Interpretabilidad.</strong> Cada una de las cuatro
+componentes retenidas tiene una lectura clara y distinta en el contexto
+cafetero (sección 7): calidad sensorial general (PC1), defectos físicos
+(PC2), uniformidad/dulzura (PC3) y altitud/humedad (PC4). Desde PC5 las
+cargas se reparten en magnitudes moderadas entre muchas variables a la
+vez, sin un patrón temático fácil de nombrar.</li>
+<li><strong>Objetivo de la reducción dimensional.</strong> El propósito
+de este análisis es exploratorio e interpretativo — entender qué
+dimensiones latentes componen la calidad del café —, no una reducción
+agresiva pensada para alimentar un modelo predictivo (donde el criterio
+dominante sería otro, p. ej. desempeño <em>out-of-sample</em>). Para ese
+objetivo, la interpretabilidad de cada eje pesa más que exprimir el
+último punto porcentual de varianza acumulada, por lo que se prioriza un
+k donde todas las componentes retenidas sean nombrables.</li>
 </ul>
+<p><strong>¿Por qué es adecuado conservar estas 4 componentes?</strong>
+Porque cuatro criterios independientes convergen en el mismo número: (1)
+el criterio de Kaiser da exactamente 4 valores propios mayores que 1;
+(2) la varianza acumulada llega a un nivel razonable (74.6 %) sin
+necesitar más componentes; (3) el gráfico de codo confirma que, pasada
+la cuarta componente, la ganancia marginal de varianza es pequeña y
+decrece suavemente; y (4) las cuatro componentes retenidas — a
+diferencia de la quinta en adelante — tienen una interpretación
+sustantiva clara en términos de las variables originales del café
+(sección 7). Como el objetivo del análisis es interpretar la estructura
+de calidad y no comprimir al máximo, k = 4 es el punto donde se retiene
+la mayor cantidad de información nombrable sin arrastrar componentes
+cuyo significado ya no se puede justificar con las variables
+originales.</p>
 <hr />
 </div>
 <div id="interpretación-de-las-componentes" class="section level1">
@@ -3480,36 +3601,109 @@ componente es arbitrario — lo que importa son los contrastes.</p>
 ## Category.One.Defects  0.042 -0.661  0.067 -0.237
 ## Category.Two.Defects  0.085 -0.664 -0.038  0.044
 ## altitude_mean_meters -0.072  0.018  0.236  0.791</code></pre>
+<div id="pc1-47.7-de-la-varianza-calidad-sensorial-general" class="section level3">
+<h3>PC1 (47.7 % de la varianza) — “calidad sensorial general”</h3>
 <ul>
-<li><strong>PC1 (47.7% de la varianza) — “calidad sensorial
-general”:</strong> todas las variables de catación (Aroma, Flavor,
-Aftertaste, Acidity, Body, Balance, Cupper.Points) cargan con signo
-negativo y magnitud similar (entre −0.33 y −0.36), y en menor medida
-Uniformity, Clean.Cup y Sweetness (≈ −0.22 a −0.24). No hay variables en
-sentido opuesto: PC1 es esencialmente un eje de “calidad global” del
-lote — lotes con mejor puntaje en todos los atributos sensoriales tienen
-valores muy negativos en PC1 (el signo es arbitrario, lo relevante es
-que se mueven todas juntas).</li>
-<li><strong>PC2 (10.0%) — “defectos físicos / humedad”:</strong>
-dominado por <code>Category.One.Defects</code> (−0.66) y
-<code>Category.Two.Defects</code> (−0.66), con <code>Moisture</code>
-acompañando (−0.26). Es un eje casi ortogonal al anterior: la calidad
-física del grano (defectos, humedad) varía de forma prácticamente
-independiente de la calidad sensorial.</li>
-<li><strong>PC3 (9.6%) — “uniformidad/dulzura vs. atributos de
-sabor”:</strong> <code>Uniformity</code> (−0.46), <code>Clean.Cup</code>
-(−0.48) y <code>Sweetness</code> (−0.53) tienen cargas altas y del mismo
-signo, mientras que Aroma/Flavor/Acidity/Body/Balance tienen cargas
-positivas moderadas (~0.10–0.14) — sentido opuesto. Sugiere que,
-controlando por PC1, hay lotes que destacan más en “limpieza y dulzura
-de taza” que en “intensidad de sabor”, y viceversa.</li>
-<li><strong>PC4 (7.3%) — “altitud/humedad”:</strong> dominado casi en
-solitario por <code>altitude_mean_meters</code> (0.79) y
-<code>Moisture</code> (0.55), con el resto de variables con cargas
-cercanas a cero. Es un eje de metadatos de la finca/proceso,
-desconectado de la calidad sensorial.</li>
+<li><strong>Variables con mayor peso:</strong> Flavor (−0.362),
+Aftertaste (−0.359), Balance (−0.346), Acidity (−0.338), Cupper.Points
+(−0.336), Body (−0.336) y Aroma (−0.333) — los siete puntajes de
+catación “de intensidad”, todos con magnitud entre 0.33 y 0.36.</li>
+<li><strong>Variables con comportamientos similares:</strong> Uniformity
+(−0.234), Clean.Cup (−0.216) y Sweetness (−0.222) tienen el mismo signo
+que el bloque anterior, aunque con menos peso: se mueven en la misma
+dirección que el resto de la calidad sensorial, solo que más
+débilmente.</li>
+<li><strong>Variables que aparecen en sentidos opuestos:</strong>
+ninguna con peso relevante — <code>Moisture</code> (0.071),
+<code>Category.One.Defects</code> (0.042),
+<code>Category.Two.Defects</code> (0.085) y
+<code>altitude_mean_meters</code> (−0.072) tienen cargas prácticamente
+nulas. PC1 no contrasta nada contra la calidad sensorial: es un eje de
+una sola dirección.</li>
+<li><strong>Significado de la componente en el contexto de los
+datos:</strong> un eje único de “qué tan bien puntuó el lote en
+general”. Lotes con mejor desempeño en todos los atributos de cata (los
+diez puntajes, con más peso en los siete de intensidad) tienen valores
+muy negativos en PC1 — el signo es arbitrario, lo que importa es que las
+diez variables sensoriales se mueven juntas. Es el resumen de “qué tan
+buena es la taza”, sin distinguir todavía matices entre atributos.</li>
+</ul>
+</div>
+<div id="pc2-10.0-defectos-físicos" class="section level3">
+<h3>PC2 (10.0 %) — “defectos físicos”</h3>
+<ul>
+<li><strong>Variables con mayor peso:</strong>
+<code>Category.One.Defects</code> (−0.661) y
+<code>Category.Two.Defects</code> (−0.664), prácticamente
+empatadas.</li>
+<li><strong>Variables con comportamientos similares:</strong>
+<code>Moisture</code> (−0.263) acompaña con el mismo signo, aunque con
+bastante menos peso — más humedad tiende a acompañar a más defectos
+registrados.</li>
+<li><strong>Variables que aparecen en sentidos opuestos:</strong>
+<code>Clean.Cup</code> (+0.152) es la única carga de signo contrario con
+magnitud apreciable (el resto — los otros nueve puntajes sensoriales y
+<code>altitude_mean_meters</code> — están todos por debajo de 0.10 en
+valor absoluto, prácticamente ruido). Es un contraste modesto pero
+coherente: lotes con más defectos físicos tienden a tener, en este eje,
+una taza ligeramente menos “limpia”.</li>
+<li><strong>Significado de la componente en el contexto de los
+datos:</strong> un eje de calidad física del grano, casi ortogonal a PC1
+— mide defectos y humedad, no sabor. Confirma que la calidad física
+varía de forma prácticamente independiente de la calidad sensorial: un
+lote puede puntuar alto en catación y aun así tener defectos físicos
+relevantes, y viceversa.</li>
+</ul>
+</div>
+<div id="pc3-9.6-consistencia-y-dulzura-del-lote-vs.-intensidad-sensorial" class="section level3">
+<h3>PC3 (9.6 %) — “consistencia y dulzura del lote vs. intensidad
+sensorial”</h3>
+<ul>
+<li><strong>Variables con mayor peso:</strong> Sweetness (−0.532),
+Clean.Cup (−0.479) y Uniformity (−0.461).</li>
+<li><strong>Variables con comportamientos similares:</strong>
+<code>Moisture</code> (−0.332) se suma a ese grupo con el mismo signo —
+un bloque de “consistencia del lote” (dulzura, limpieza de taza,
+uniformidad y humedad) que se mueve unido.</li>
+<li><strong>Variables que aparecen en sentidos opuestos:</strong> los
+siete puntajes de intensidad sensorial (Aroma, Flavor, Aftertaste,
+Acidity, Body, Balance, Cupper.Points) tienen cargas positivas moderadas
+(0.10–0.14), y <code>altitude_mean_meters</code> también es positiva y
+algo mayor (0.236) — todas de signo contrario al bloque de
+consistencia.</li>
+<li><strong>Significado de la componente en el contexto de los
+datos:</strong> PC3 distingue, dentro de lotes ya parecidos en PC1, a
+los que destacan más en “consistencia y dulzura de taza” (uniformidad,
+ausencia de defectos de limpieza, dulzura, más humedad) de los que
+destacan más en “intensidad sensorial y altitud” — un matiz secundario
+que PC1 no capturaba porque promediaba todos los atributos juntos.</li>
+</ul>
+</div>
+<div id="pc4-7.3-altitud-y-humedad-con-menos-defectos-primarios" class="section level3">
+<h3>PC4 (7.3 %) — “altitud y humedad, con menos defectos primarios”</h3>
+<ul>
+<li><strong>Variables con mayor peso:</strong>
+<code>altitude_mean_meters</code> (0.791), muy por encima de cualquier
+otra variable.</li>
+<li><strong>Variables con comportamientos similares:</strong>
+<code>Moisture</code> (0.545) acompaña con el mismo signo — en este eje,
+fincas más altas están asociadas a mayor humedad medida en el
+grano.</li>
+<li><strong>Variables que aparecen en sentidos opuestos:</strong>
+<code>Category.One.Defects</code> (−0.237) es la única carga adicional
+no despreciable y tiene signo contrario — lotes de fincas más altas y
+húmedas tienden a tener, en este eje, menos defectos primarios. El resto
+de variables (los diez puntajes sensoriales y
+<code>Category.Two.Defects</code>) quedan por debajo de 0.08 en valor
+absoluto.</li>
+<li><strong>Significado de la componente en el contexto de los
+datos:</strong> un eje de metadatos agroclimáticos y de proceso —
+altitud, humedad y, en menor medida, defectos primarios —, prácticamente
+desconectado tanto de la calidad sensorial (PC1) como de los defectos
+secundarios y la limpieza de taza (PC2, PC3).</li>
 </ul>
 <hr />
+</div>
 </div>
 <div id="matriz-de-gráficos-de-dispersión-de-las-componentes" class="section level1">
 <h1>8. Matriz de gráficos de dispersión de las componentes</h1>

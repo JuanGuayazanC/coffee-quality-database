@@ -385,8 +385,9 @@ Lo que el biplot añade frente a la matriz de dispersión es la **dirección y m
 
 - **Objetivo:** capturar estructura **no lineal** proyectando los datos a un espacio de mayor dimensión (vía un kernel) antes de aplicar PCA, sin calcular explícitamente esa transformación (truco del kernel).
 - **Diferencia con PCA convencional:** PCA busca combinaciones *lineales* de las variables originales que maximizan varianza; Kernel PCA busca esas combinaciones en un espacio transformado no lineal, por lo que puede separar estructuras que PCA lineal no distingue (curvas, anillos, clústeres no separables linealmente).
-- **Kernel usado:** RBF (gaussiano), `kernel = "rbfdot"`, por ser el más estándar para capturar relaciones no lineales suaves sin imponer una forma funcional específica.
-- **Parámetro principal:** `sigma`, que controla qué tan "local" es la noción de similitud entre lotes (sigma pequeño = vecindades más estrechas / más no linealidad capturada; sigma grande → el comportamiento se acerca más al de un kernel lineal).
+- **Concepto de kernel:** un kernel es una función $k(x_i, x_j)$ que mide la similitud entre dos observaciones directamente, sin necesidad de construir explícitamente la transformación $\varphi(x)$ que llevaría los datos al espacio de alta dimensión. Basta con calcular los productos internos $K_{ij} = \langle \varphi(x_i),\, \varphi(x_j) \rangle = k(x_i, x_j)$ para toda la muestra; esto es el *truco del kernel*: operar en el espacio transformado (potencialmente de dimensión infinita) a un costo computacional igual al de calcular una matriz $n \times n$ de similitudes.
+- **Kernels disponibles en `kernlab`:** `rbfdot` (RBF/gaussiano — el más versátil para relaciones no lineales suaves, parámetro `sigma`); `polydot` (polinomial, captura interacciones de grado fijo, parámetros `degree`, `scale`, `offset`); `vanilladot` (lineal — Kernel PCA con este kernel reproduce PCA convencional); `tanhdot` (sigmoide, inspirado en redes neuronales); `laplacedot` (Laplaciano, más robusto a outliers que RBF); `besseldot`, `anovadot` y `splinedot` (kernels de uso más especializado). Se eligió `rbfdot` porque es el estándar para datos continuos y suaves sin estructura de grado polinomial conocido.
+- **Principales parámetros:** `sigma` (controla qué tan "local" es la similitud: sigma pequeño → solo vecinos muy próximos se consideran similares, captura no linealidades más finas; sigma grande → el comportamiento se aproxima al kernel lineal); `features` (número de componentes de Kernel PCA a retener).
 - **Interpretación de las coordenadas:** a diferencia de PCA, no son combinaciones lineales directas de las variables originales, por lo que no se leen mediante cargas (`rotation`) sino de forma relacional — qué observaciones quedan cerca o lejos en el espacio transformado.
 
 > **Teoría — el truco del kernel.** En vez de diagonalizar $S$ o $R$, Kernel PCA diagonaliza la matriz de Gram $K_{n \times n}$, donde cada entrada mide la similitud entre dos lotes:
@@ -433,6 +434,8 @@ pairs(scores_kpca[, 1:5],
 
 **¿Qué patrones aparecen con Kernel PCA que no eran evidentes mediante PCA?** El panel de las dos primeras componentes de Kernel PCA muestra una **estructura en forma de anillo/herradura** (horseshoe), completamente ausente en la matriz de dispersión lineal de PCA (sección 8), donde solo había una nube elíptica. Este tipo de patrón circular es un efecto no lineal característico de aplicar un kernel RBF de sigma pequeño sobre datos que, en el fondo, varían principalmente a lo largo de un solo gradiente continuo (aquí, el gradiente de calidad sensorial de PC1): el kernel "curva" ese gradiente en un arco.
 
+**Posibles observaciones atípicas en Kernel PCA:** los mismos lotes atípicos identificados en PCA (el lote con todos los puntajes en cero, los lotes con 30+ defectos, los de altitud = 1 m) tienden a aparecer en los extremos del anillo o en posiciones periféricas dentro de la estructura del Kernel PCA. Sin embargo, la transformación no lineal los "redistribuye" respecto de su posición en PCA: el kernel RBF asigna similitud casi nula entre un lote extremo y el resto (por distancia euclidiana grande en el espacio estandarizado), lo que los empuja a los bordes de la estructura. No se crean nuevos atípicos por efecto del kernel, pero los ya existentes cambian de posición relativa respecto del grueso de los datos.
+
 **Variación de un parámetro (sigma):**
 
 ```{r kpca-sigma-alto, fig.height=8}
@@ -454,6 +457,7 @@ Al aumentar `sigma` a 1 (vecindades más "anchas", similitud menos local), el an
 **Antes de aplicarlo:**
 
 - **Objetivo:** preservar las relaciones de **vecindad local** (qué observaciones son "vecinas" de cuáles), sacrificando la fidelidad de las distancias globales entre grupos alejados.
+- **Importancia de las relaciones de vecindad:** en t-SNE, la unidad interpretativa fundamental no es la distancia entre dos puntos cualesquiera del gráfico, sino si dos puntos son *vecinos locales* en el espacio original. Dos lotes que aparecen juntos en el plano 2D tienen alta probabilidad $p_{ij}$ de ser vecinos en el espacio de 14 variables; dos lotes que aparecen lejos pueden no ser realmente distantes en el original (t-SNE distorsiona las distancias globales a propósito). Por eso la lectura correcta es: "estos lotes comparten un perfil de calidad similar" (si están juntos), pero no "estos grupos están más separados que aquellos" (la distancia entre grupos no es confiable).
 - **Parámetros principales:** `perplexity` (tamaño efectivo de vecindario que se intenta preservar; regla práctica para ~1000 muestras: 20–50), `theta` (aproximación de Barnes-Hut, trade-off velocidad/precisión).
 - **Interpretación de las coordenadas:** no son componentes principales; los ejes no tienen significado por sí mismos y las distancias absolutas no son interpretables, solo la vecindad relativa.
 - **Limitaciones:** no es determinista salvo fijando semilla, no se puede proyectar una observación nueva sin reentrenar, y es sensible a `perplexity`.
@@ -487,6 +491,10 @@ plot(tsne$Y,
 ```
 
 Con `perplexity = 30` se obtiene una **nube continua**, sin separación clara en clústeres discretos — consistente con lo observado en PCA: los lotes de café arábica de este dataset forman un continuo de calidad más que grupos naturales bien definidos. Se aprecia una leve concentración adicional en la parte superior izquierda, pero sin un vacío claro que la separe del resto.
+
+**Vecindades:** dentro de la nube, la densidad es mayor en la zona central, lo que indica que la mayoría de los lotes son vecinos entre sí en el espacio original — sus perfiles de calidad son similares y t-SNE los agrupa en la misma región densa. Las zonas más periféricas de la nube corresponden a lotes cuyo perfil sensorial o de defectos se aleja moderadamente de la media, sin llegar a ser extremos.
+
+**Observaciones aisladas:** se identifican unos pocos puntos claramente desplazados de la nube principal — en particular uno muy alejado en el extremo de la nube. Corresponde al lote con todos los puntajes sensoriales en cero (identificado como atípico en PCA, sección 8): su vecindario en el espacio original es vacío (no hay ningún otro lote con perfil similar), y t-SNE lo expulsa a una posición periférica del gráfico. Los lotes con 30+ defectos también aparecen en la periferia, aunque menos separados que en PCA porque la transformación de t-SNE no conserva esas distancias globales.
 
 **Variación de un parámetro (perplexity):**
 
@@ -538,6 +546,10 @@ plot(um[, 1], um[, 2],
 ```
 
 A diferencia de PCA, Kernel PCA y t-SNE, **UMAP separa con claridad dos grupos**: una nube principal alargada y un grupo secundario, más pequeño y compacto, claramente distanciado del resto (parte inferior del gráfico).
+
+**Vecindades:** dentro de la nube principal, los lotes que aparecen próximos comparten un perfil de calidad similar en las 14 variables (vecinos en el espacio de 14 dimensiones). La nube alargada sugiere un gradiente continuo de calidad — coherente con PC1 —, no grupos discretos; lotes en un mismo extremo de esa nube tienen perfiles más cercanos entre sí que con los del extremo opuesto, y UMAP lo refleja manteniéndolos en posiciones alejadas dentro de la nube.
+
+**Observaciones aisladas:** entre los dos grupos se observan unos pocos puntos que no pertenecen claramente a ninguno: lotes con `Moisture` bajo pero no exactamente cero, o con alguna variable en un rango intermedio atípico. Son los "puentes" entre el grupo Moisture=0 y el resto — lotes que en el grafo de vecinos de UMAP quedaron conectados parcialmente a ambas regiones, y el algoritmo los sitúa en tierra de nadie entre los dos grupos. No deben interpretarse como un tercer grupo sino como observaciones cuyo perfil no encaja perfectamente en ninguno de los dos conjuntos identificados.
 
 ```{r umap-cluster-investigacion}
 cluster_bajo <- um[, 2] < -5

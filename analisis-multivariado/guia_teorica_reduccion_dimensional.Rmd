@@ -1,0 +1,243 @@
+---
+title: "Guía teórica — Métodos de reducción dimensional"
+subtitle: "PCA · Kernel PCA · t-SNE · UMAP"
+author: "AMMV 2026"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+> Este documento recoge las explicaciones conceptuales de los cuatro métodos trabajados en el taller de PCA. No contiene código; está pensado como repaso teórico para preparar la sustentación o para quien quiera entender la intuición detrás de cada técnica antes de ver las fórmulas.
+
+---
+
+# El problema común: de 14 dimensiones a 2
+
+Imagina que cada lote de café es un **punto en un espacio de 14 dimensiones** — una por cada variable: Aroma, Flavor, Aftertaste, Balance, Acidity, Body, Cupper.Points, Uniformity, Clean.Cup, Sweetness, Moisture, Category.One.Defects, Category.Two.Defects y altitude_mean_meters. Los 1.070 lotes son 1.070 puntos flotando en ese espacio.
+
+El problema es que 14 dimensiones no se pueden dibujar ni visualizar directamente. Los cuatro métodos del taller responden a la misma pregunta:
+
+> **¿Cómo representar esos 1.070 puntos en 2 dimensiones perdiendo la menor información posible?**
+
+La diferencia entre ellos está en qué entienden por "perder la menor información posible" — qué aspectos del espacio de 14D deciden preservar y cuáles sacrificar.
+
+---
+
+# PCA — Análisis de Componentes Principales
+
+## La idea central: buscar la dirección de mayor varianza
+
+PCA responde: *preserva la mayor varianza posible*. Antes de reducir dimensiones, PCA busca cuál es la **dirección** en el espacio de 14D en la que los datos "varían más" — es decir, en la que los 1.070 puntos están más dispersos.
+
+¿Qué es una "dirección" en 14D? Es un vector unitario que apunta hacia algún lado en ese espacio — una combinación de las 14 variables. La primera componente principal (PC1) es exactamente esa dirección de máxima varianza.
+
+## Scores: los puntos proyectados
+
+Una vez encontrada esa dirección PC1, cada lote se "proyecta" sobre ella: se calcula a qué distancia queda el punto desde el origen si lo "sombras" sobre esa línea. Esa distancia es el **score** del lote en PC1.
+
+Los scores son el nuevo dato: ya no tenemos 14 coordenadas por lote sino 1 (el score en PC1). Si repetimos el proceso para una segunda dirección ortogonal a la primera, obtenemos el score en PC2. Con 4 componentes, cada lote queda representado por 4 números en vez de 14.
+
+## Cargas (loadings): qué variables forman cada componente
+
+Las **cargas** son los coeficientes del vector PC1. Si PC1 = (0.33·Aroma + 0.36·Flavor + 0.35·Aftertaste + ... + 0.07·Moisture), entonces la carga de Aroma en PC1 es 0.33, la de Moisture es 0.07, etc.
+
+Una carga alta en valor absoluto significa que esa variable pesa mucho en la componente. Cargas del mismo signo indican variables que se mueven juntas en ese eje; signos opuestos indican variables que se oponen.
+
+## Por qué se estandariza antes
+
+Si no estandarizamos, `altitude_mean_meters` (valores en miles) dominaría la varianza por su escala, no por su importancia real. Al estandarizar (restar la media y dividir por la desviación estándar), todas las variables parten con varianza 1 y PCA mide correlación entre ellas, no diferencias de escala.
+
+## Valores propios y varianza explicada
+
+El **valor propio** $\lambda_i$ de la componente $i$ es exactamente la varianza de los scores en esa dirección — qué tan dispersos quedan los 1.070 puntos proyectados sobre ella. Como los datos están estandarizados, la suma de todos los valores propios es $p = 14$ (uno por variable). El **porcentaje de varianza** de cada componente es simplemente $\lambda_i / 14$.
+
+Por ejemplo, en nuestros datos $\lambda_1 = 6.68$, lo que da $6.68/14 = 47.7\%$.
+
+## Criterio de Kaiser: ¿cuántas componentes retener?
+
+La lógica: si una componente tiene $\lambda_i > 1$, explica más varianza que una sola variable estandarizada. Si tiene $\lambda_i < 1$, no justifica existir — resume menos información que la variable más pobre. Por eso el umbral es $\lambda_i > 1$.
+
+## Gráfico de codo (screeplot)
+
+Dibuja los valores propios de mayor a menor. La "rodilla" o "codo" es el punto donde la caída se aplana. Antes del codo, cada componente adicional aporta mucha varianza nueva; después, la ganancia es pequeña. Se usa como guía visual — no como criterio único.
+
+## Biplot: scores y cargas en el mismo gráfico
+
+Un biplot superpone dos cosas en el mismo plano PC1–PC2:
+
+- Los **puntos** (scores de cada lote)
+- Las **flechas** (cargas de cada variable)
+
+El ángulo entre dos flechas aproxima la correlación entre esas variables: flechas casi paralelas → variables muy correlacionadas; flechas casi perpendiculares → variables independientes; flechas en sentidos opuestos → correlación negativa. La longitud de la flecha indica qué tan bien representada queda esa variable en las dos componentes.
+
+Un lote que queda en la dirección hacia donde apunta un haz de flechas tiene valores altos en todas esas variables simultáneamente.
+
+---
+
+# Kernel PCA — PCA con el truco del kernel
+
+## El problema con PCA lineal
+
+PCA solo captura estructura **lineal**: si los datos forman una espiral, un anillo o grupos en forma de media luna, PCA no los separa bien — sus ejes son rectas que no pueden seguir esas curvas.
+
+## La solución: transformar primero, luego hacer PCA
+
+La idea de Kernel PCA es: *transforma los datos a un espacio de mayor dimensión donde la estructura sí sea lineal, y luego aplica PCA allí.* En ese espacio transformado, lo que era una curva puede convertirse en algo lineal y separable.
+
+El problema es que esa transformación puede ser a un espacio de dimensión muy alta — incluso infinita. Calcularla explícitamente sería imposible.
+
+## El truco del kernel
+
+Aquí entra el truco: para hacer PCA en el espacio transformado, en realidad solo se necesita calcular **productos internos** entre los puntos transformados, no los puntos en sí. Y un kernel $k(x_i, x_j)$ calcula exactamente ese producto interno sin construir la transformación explícita:
+
+$$k(x_i, x_j) = \langle \varphi(x_i),\, \varphi(x_j) \rangle$$
+
+Es como si pudieras medir la distancia entre dos objetos de alta dimensión sin tener que construirlos — solo con su función de similitud. Computacionalmente, solo se necesita calcular una matriz $n \times n$ de similitudes entre los 1.070 lotes.
+
+## El kernel RBF (gaussiano)
+
+El más común para datos continuos:
+
+$$k(x, y) = \exp\!\big(-\sigma \, \lVert x - y \rVert^2\big)$$
+
+Mide similitud: vale 1 si dos lotes son idénticos (distancia 0) y se acerca a 0 si están lejos. El parámetro $\sigma$ controla qué tan "local" es esa similitud:
+
+- **$\sigma$ pequeño** (p. ej. 0.05): solo los lotes muy cercanos se consideran similares. El kernel "ve" en pequeño y captura no linealidades finas. En nuestros datos aparece un anillo.
+- **$\sigma$ grande** (p. ej. 1): lotes más alejados siguen siendo similares. El kernel "ve" en grande y el comportamiento se aproxima al lineal. En nuestros datos aparecen patrones radiales.
+
+## Qué no puede hacer Kernel PCA
+
+A diferencia de PCA, Kernel PCA **no tiene cargas interpretables**. No se puede decir "la componente 1 de Kernel PCA es una combinación de Aroma y Flavor con tales pesos" — las coordenadas resultantes solo se interpretan de forma relacional (quién queda cerca de quién).
+
+---
+
+# t-SNE — Reducción por vecindades locales
+
+## La idea central: preservar quién es vecino de quién
+
+t-SNE no busca preservar varianza ni distancias globales — busca que, si dos lotes son **vecinos** en el espacio de 14D (perfiles de calidad similares), queden también cercanos en el plano 2D.
+
+La unidad interpretativa fundamental de t-SNE es: *"estos dos puntos están juntos en el gráfico porque son vecinos en el espacio original"*. No más que eso.
+
+## Cómo define "vecino": probabilidades de vecindad
+
+Para cada lote $i$, t-SNE calcula la probabilidad de que el lote $j$ sea su vecino usando un kernel gaussiano:
+
+$$p_{j \mid i} = \frac{\exp\!\big(-\lVert x_i - x_j \rVert^2 / 2\sigma_i^2\big)}{\sum_{k \neq i} \exp\!\big(-\lVert x_i - x_k \rVert^2 / 2\sigma_i^2\big)}$$
+
+En palabras: $p_{j|i}$ es la probabilidad de que $i$ "elija" a $j$ como vecino. La normalización garantiza que esas probabilidades sumen 1 para cada lote.
+
+## Qué minimiza t-SNE
+
+Una vez calculadas las probabilidades $p_{ij}$ en 14D, t-SNE busca posiciones $y_i$ en 2D cuyas probabilidades análogas $q_{ij}$ (calculadas con una distribución $t$ de Student en vez de gaussiana) sean lo más parecidas posible a las originales. Minimiza la **divergencia de Kullback-Leibler**:
+
+$$\mathrm{KL}(P \parallel Q) = \sum_{i \neq j} p_{ij}\log\frac{p_{ij}}{q_{ij}}$$
+
+Mover los puntos en 2D hasta que esta divergencia sea mínima garantiza que las vecindades se preserven tanto como la geometría 2D lo permita.
+
+## El parámetro perplexity
+
+`perplexity` controla cuántos vecinos efectivos se intentan preservar por cada lote. Con ~1.000 datos, la regla práctica es 20–50.
+
+- **Perplexity alta** (p. ej. 30): cada lote considera un vecindario más amplio. El resultado es una nube más compacta y coherente.
+- **Perplexity baja** (p. ej. 5): cada lote considera solo unos pocos vecinos inmediatos. El algoritmo "sobreajusta" ruido local y puede crear filamentos o fragmentos que no reflejan estructura real en los datos.
+
+## Qué NO se puede hacer con t-SNE
+
+- **Las distancias entre grupos no son confiables**: t-SNE puede acercar dos grupos que en realidad están lejos, o separar puntos que son moderadamente cercanos, dependiendo de la geometría local. La única lectura válida es la vecindad, no la separación entre grupos.
+- **No se puede proyectar una observación nueva**: t-SNE no define ninguna función que pueda aplicarse a un lote nuevo sin reentrenar todo desde cero.
+- **No es determinista** sin fijar semilla: dos corridas con semillas distintas pueden producir gráficos completamente diferentes.
+
+---
+
+# UMAP — Preservar vecindades y algo de estructura global
+
+## La idea central: un grafo de vecinos difuso
+
+UMAP parte de una construcción diferente a t-SNE: construye un **grafo** de los $k$ vecinos más cercanos de cada lote, donde cada conexión tiene un peso $w_{ij} \in [0,1]$ que representa la "fuerza de vecindad" (1 = vecinos muy próximos, 0 = sin conexión). Luego busca posiciones en 2D con pesos análogos $w'_{ij}$ que reproduzcan ese grafo.
+
+## Qué minimiza UMAP
+
+UMAP minimiza la **entropía cruzada difusa** entre los dos grafos:
+
+$$C = \sum_{i,j} \left[ w_{ij} \log\frac{w_{ij}}{w'_{ij}} + (1-w_{ij}) \log\frac{1-w_{ij}}{1-w'_{ij}} \right]$$
+
+Al trabajar sobre un grafo **global** (no solo sobre pares como t-SNE), UMAP conserva mejor las distancias relativas **entre** grupos, no solo dentro de cada vecindario.
+
+## Diferencia práctica con t-SNE
+
+| Aspecto | t-SNE | UMAP |
+|---|---|---|
+| Unidad que preserva | Probabilidad de vecindad por par | Pesos en grafo global de vecinos |
+| Estructura global | Se distorsiona deliberadamente | Se conserva parcialmente |
+| Velocidad | Más lento (cálculo exacto) | Más rápido |
+| Estabilidad | Sensible a semilla y perplexity | Más estable entre corridas |
+| Observaciones nuevas | No es posible | Sí: `umap_transform()` |
+
+En la práctica: si dos grupos están lejos en el gráfico UMAP, probablemente son realmente distintos en el espacio original. En t-SNE, esa inferencia no es segura.
+
+## El parámetro n_neighbors
+
+`n_neighbors` controla el tamaño del vecindario — es el análogo a `perplexity` en t-SNE.
+
+- **n_neighbors pequeño** (p. ej. 5): UMAP presta atención a una estructura muy local. La nube principal puede fragmentarse en más subgrupos.
+- **n_neighbors grande** (p. ej. 50): UMAP equilibra estructura local y global. El resultado tiende a ser más parecido a PCA en términos de compacidad.
+
+---
+
+# Comparación rápida de los cuatro métodos
+
+| Pregunta | PCA | Kernel PCA | t-SNE | UMAP |
+|---|---|---|---|---|
+| ¿Qué preserva? | Varianza lineal global | Similitud no lineal | Vecindad local | Vecindad local + algo de estructura global |
+| ¿Ejes interpretables? | Sí (cargas) | No | No | No |
+| ¿Proyecta datos nuevos? | Sí (directa) | Parcial | No | Sí (`umap_transform`) |
+| ¿Sensible a parámetros? | Poco | Mucho (`sigma`) | Mucho (`perplexity`) | Moderado (`n_neighbors`) |
+| ¿Determinista? | Sí | Sí | No (sin semilla) | Casi (con semilla) |
+| Uso recomendado | Entender estructura + modelado | Explorar no linealidad | Visualizar vecindades | Visualizar vecindades + auditar datos |
+
+---
+
+# La familia de métodos: una misma pregunta, respuestas distintas
+
+Vistas en conjunto, las cuatro técnicas son variantes de la misma idea: **representar $n$ puntos en alta dimensión con la menor distorsión posible en pocas dimensiones**.
+
+- **PCA** preserva la **distancia euclídea global** entre observaciones (es, de hecho, equivalente al escalamiento multidimensional clásico con distancias euclídeas).
+- **Kernel PCA** preserva la **similitud no lineal** definida por el kernel, que puede capturar relaciones que no son euclídeas.
+- **t-SNE** preserva las **probabilidades de vecindad local** — no la distancia sino la "chance de ser vecino".
+- **UMAP** preserva los **pesos en el grafo difuso de vecinos** — similar a t-SNE pero con mayor peso en la topología global.
+
+La diferencia fundamental es siempre la misma: qué aspecto del espacio de alta dimensión se decide conservar cuando se comprimen 14 dimensiones en 2.
+
+---
+
+# Glosario mínimo
+
+**Score:** coordenada de un lote en el espacio reducido (ej. su valor en PC1). Es la proyección del lote original sobre la dirección de la componente.
+
+**Carga (loading):** peso de una variable original en una componente. Le da nombre e interpretación a la componente.
+
+**Valor propio ($\lambda$):** varianza de los scores en una componente. Mide cuánta información retiene esa componente.
+
+**Kernel:** función $k(x_i, x_j)$ que mide similitud entre dos observaciones sin construir explícitamente la transformación al espacio de alta dimensión.
+
+**Truco del kernel:** operar en un espacio transformado de alta dimensión calculando solo productos internos vía el kernel — sin construir los vectores transformados.
+
+**Perplexity (t-SNE):** número efectivo de vecinos que se intenta preservar por cada punto. Controla la granularidad de la estructura local capturada.
+
+**n_neighbors (UMAP):** tamaño del vecindario en el grafo de vecinos más cercanos. Análogo a perplexity en t-SNE.
+
+**Divergencia KL:** medida de cuánto se parece una distribución de probabilidad a otra. t-SNE la minimiza para que las vecindades en 2D sean lo más similares posible a las del espacio original.
+
+**Entropía cruzada difusa:** función que UMAP minimiza para que los pesos del grafo de vecinos en 2D se parezcan a los del grafo original.
+
+**Biplot:** gráfico que superpone scores (puntos) y cargas (flechas) en el plano PC1–PC2.

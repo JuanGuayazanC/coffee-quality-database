@@ -70,8 +70,6 @@ data_f <- data %>%
   filter(!is.na(altitude_mean_meters))
 
 datos <- data_f %>% select(all_of(vars_cuantitativas))
-
-dim(datos)
 ```
 
 Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin datos faltantes.
@@ -86,6 +84,11 @@ dim(datos)
 head(datos)
 summary(datos)
 colSums(is.na(datos))
+```
+
+Examine también las relaciones entre las variables:
+
+```{r correlacion}
 cor(datos)
 ```
 

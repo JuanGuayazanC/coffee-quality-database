@@ -2859,7 +2859,7 @@ border-radius: 0px;
 <h3 class="subtitle">PCA y métodos alternativos de reducción de
 dimensionalidad — Coffee Quality Institute</h3>
 <h4 class="author">Juan Sebastian</h4>
-<h4 class="date">20 de septiembre de 2026</h4>
+<h4 class="date">21 de septiembre de 2026</h4>
 
 </div>
 
@@ -3628,6 +3628,15 @@ muy negativos en PC1 — el signo es arbitrario, lo que importa es que las
 diez variables sensoriales se mueven juntas. Es el resumen de “qué tan
 buena es la taza”, sin distinguir todavía matices entre atributos.</li>
 </ul>
+<p><strong>Lectura práctica del score PC1:</strong> si quisieras ordenar
+los 1.070 lotes de peor a mejor café usando una sola cifra, ese número
+sería el score de PC1. Los lotes con score muy negativo en PC1 tienen
+Aroma, Flavor, Aftertaste, Balance y los demás puntajes sensoriales
+altos al mismo tiempo; los del extremo positivo los tienen todos bajos.
+Cualquier lote nuevo (ya estandarizado con las mismas medias y
+desviaciones) puede proyectarse sobre PC1 con una multiplicación y
+quedar ubicado en ese ranking sin necesidad de recalcular el PCA
+completo.</p>
 </div>
 <div id="pc2-10.0-defectos-físicos" class="section level3">
 <h3>PC2 (10.0 %) — “defectos físicos”</h3>
@@ -3654,6 +3663,14 @@ varía de forma prácticamente independiente de la calidad sensorial: un
 lote puede puntuar alto en catación y aun así tener defectos físicos
 relevantes, y viceversa.</li>
 </ul>
+<p><strong>Por qué PC2 captura esto y PC1 no:</strong> PC1 ya “agotó” la
+variación que comparten los diez puntajes sensoriales juntos. Lo que
+quedó sin explicar tras PC1 — la variación en Category.One/Two.Defects y
+Moisture — no siguió el mismo patrón de los puntajes sensoriales, así
+que PC2 tomó esa dirección ortogonal restante. En términos prácticos:
+saber que un lote está en el extremo de PC1 (muy buena taza) no te dice
+nada sobre cuántos defectos físicos tiene su grano; para saberlo hay que
+mirar PC2.</p>
 </div>
 <div id="pc3-9.6-consistencia-y-dulzura-del-lote-vs.-intensidad-sensorial" class="section level3">
 <h3>PC3 (9.6 %) — “consistencia y dulzura del lote vs. intensidad
@@ -3749,6 +3766,18 @@ observaciones forma <strong>una sola nube densa y continua</strong>, sin
 separación en subgrupos. Esto es consistente con que el café arábica de
 este dataset es relativamente homogéneo en composición (predominan lotes
 de calidad “especialidad”).</p>
+<p><strong>¿Qué significa esta nube continua para el café?</strong> Que
+la calidad del café arábica en este dataset no se organiza en “tipos” o
+categorías separadas — es un <strong>espectro continuo</strong>. Los
+lotes no pertenecen a grupos discretos de “café bueno” vs “café malo”;
+existe una transición gradual de menor a mayor calidad en todas las
+variables sensoriales simultáneamente. Esta continuidad es coherente con
+el dominio experto: las diferencias entre lotes de especialidad se
+expresan como matices, no como fronteras claras entre categorías. Por
+eso los cuatro métodos del taller — PCA, Kernel PCA, t-SNE y UMAP — no
+encuentran grupos naturales en los datos de calidad sensorial (la
+excepción de UMAP corresponde a un problema de captura de datos, no a
+una subpoblación real de café).</p>
 <p>Como comprobación adicional, coloreamos esa misma matriz por
 <code>Processing.Method</code> (metadato no usado como variable activa
 del PCA, pero disponible en <code>data_f</code>):</p>
@@ -4421,10 +4450,186 @@ hacer visualmente prominente un artefacto de captura de datos.</p>
 <div id="presentación-final-preguntas-de-sustentación-y-evaluación" class="section level1">
 <h1>16–18. Presentación final, preguntas de sustentación y
 evaluación</h1>
+<hr />
+</div>
+<div id="preguntas-frecuentes-de-sustentación" class="section level1">
+<h1>17. Preguntas frecuentes de sustentación</h1>
+<p>Las siguientes preguntas y respuestas cubren los puntos conceptuales
+y de análisis que con mayor frecuencia se examinan en la defensa de este
+taller.</p>
+<hr />
+<p><strong>P1. ¿Por qué estandarizaron las variables antes de aplicar
+PCA?</strong></p>
+<p>Porque las variables del dataset tienen escalas completamente
+distintas: <code>altitude_mean_meters</code> varía en miles de metros
+mientras que los puntajes sensoriales van de 0 a 10. Sin estandarizar,
+PCA maximizaría varianza en las variables de escala grande por mera
+unidad de medida, no por relevancia real. Con <code>scale. = TRUE</code>
+(equivalente a trabajar sobre la matriz de correlaciones <span class="math inline">\(R\)</span> en vez de <span class="math inline">\(S\)</span>), todas las variables parten con
+varianza 1 y el PCA refleja la estructura de correlación entre ellas, no
+sus diferencias de escala.</p>
+<hr />
+<p><strong>P2. ¿Qué es el criterio de Kaiser y por qué se eligieron
+exactamente 4 componentes?</strong></p>
+<p>El criterio de Kaiser dice: retén las componentes con valor propio
+<span class="math inline">\(\lambda_i &gt; 1\)</span>. La lógica es que,
+al trabajar sobre datos estandarizados, cada variable original aporta
+varianza 1 al total; una componente con <span class="math inline">\(\lambda_i &gt; 1\)</span> explica más varianza que
+una sola variable — si explicara menos, no justificaría existir. En
+nuestros datos los valores propios son <span class="math inline">\(6.68,\ 1.40,\ 1.34,\ 1.02,\ 0.84,\ldots\)</span>:
+exactamente 4 superan 1. Este resultado coincide con la varianza
+acumulada (74.6% con k = 4) y con el gráfico de codo (meseta a partir de
+PC5), y además cada componente tiene una interpretación sustantiva clara
+(secciones 7 y 19). Los cuatro criterios convergen en k = 4.</p>
+<hr />
+<p><strong>P3. ¿Cómo se interpreta PC1 en el contexto de los datos de
+café?</strong></p>
+<p>PC1 explica el 47.7% de la varianza total. Sus cargas más altas son
+para los siete puntajes de catación “de intensidad” (Flavor, Aftertaste,
+Balance, Acidity, Cupper.Points, Body, Aroma) — todas con el mismo signo
+y magnitud similar (~0.33–0.36). Esto indica que un solo eje resume casi
+la mitad de toda la variación entre lotes: los lotes que tienen Flavor
+alto tienden a tener Aroma alto, Balance alto, etc. PC1 es, en la
+práctica, un <strong>ranking de calidad sensorial general</strong> de
+los lotes. Los diez puntajes sensoriales se mueven juntos, y PC1 captura
+ese movimiento conjunto.</p>
+<hr />
+<p><strong>P4. ¿Qué diferencia hay entre PCA y Kernel PCA? ¿Cuándo
+usaría uno u otro?</strong></p>
+<p>PCA busca combinaciones <strong>lineales</strong> de las variables
+que maximizan varianza — los ejes son rectas en el espacio original.
+Kernel PCA proyecta los datos a un espacio de alta dimensión
+(implícitamente, vía una función kernel) y aplica PCA allí: puede
+capturar estructura <strong>no lineal</strong> como curvas, anillos o
+espirales que PCA lineal no separa. El “truco del kernel” evita calcular
+esa transformación explícitamente: basta con la función <span class="math inline">\(k(x_i, x_j)\)</span> que mide similitud.</p>
+<p>Se usaría Kernel PCA cuando la estructura de los datos no se puede
+resumir bien con ejes rectos (p. ej. si hubiera grupos con forma de
+media luna o anillos concéntricos). En nuestros datos de café la
+estructura es fundamentalmente lineal (una nube continua, un solo
+gradiente de calidad), así que PCA lineal basta y Kernel PCA solo aporta
+como ejercicio de exploración: muestra el gradiente “curvado” en forma
+de anillo con sigma bajo, pero no añade información interpretativa
+nueva.</p>
+<hr />
+<p><strong>P5. ¿Qué diferencia hay entre t-SNE y UMAP?</strong></p>
+<p>Ambos preservan <strong>vecindades locales</strong>: si dos lotes
+están cerca en el gráfico 2D, es porque son vecinos en el espacio de 14
+variables (perfiles similares de calidad). La diferencia está en cómo
+definen “vecino” y qué optimizan:</p>
+<ul>
+<li><strong>t-SNE</strong> calcula la probabilidad de que dos lotes sean
+vecinos (usando un kernel gaussiano) y minimiza la divergencia KL entre
+esas probabilidades en 14D y en 2D. Preserva la estructura local muy
+bien, pero <strong>distorsiona deliberadamente las distancias
+globales</strong>: la separación entre grupos en el gráfico no es
+confiable.</li>
+<li><strong>UMAP</strong> construye un grafo de los <span class="math inline">\(k\)</span> vecinos más cercanos con pesos difusos
+y minimiza la entropía cruzada entre ese grafo y su equivalente en 2D.
+Preserva también algo de <strong>estructura global</strong> (las
+distancias relativas entre grupos son más informativas que en t-SNE), es
+más rápido y más estable entre corridas. Además, permite proyectar
+observaciones nuevas con <code>umap_transform()</code>.</li>
+</ul>
+<p>Prácticamente: UMAP es más versátil que t-SNE; t-SNE puede ser más
+útil cuando el objetivo exclusivo es revelar grupos locales muy
+compactos.</p>
+<hr />
+<p><strong>P6. ¿Por qué UMAP detectó el grupo de Moisture = 0 y los
+otros métodos no?</strong></p>
+<p>PCA comprime varianza lineal global — el subgrupo de 174 lotes con
+<code>Moisture = 0</code> no tiene suficiente peso en la varianza total
+para dominar ningún eje. Kernel PCA redistribuye distancias de forma no
+lineal pero mezcla todos los patrones. t-SNE preserva vecindades muy
+locales y cada lote con <code>Moisture = 0</code> puede tener como
+vecinos locales a otros lotes con valores similares en las otras 13
+variables, diluyendo la señal. UMAP construye un <strong>grafo
+global</strong> de vecinos: los 174 lotes con <code>Moisture = 0</code>
+comparten ese valor atípico en una dimensión y forman un vecindario
+propio con pesos de conexión distintos al resto — la estructura del
+grafo los agrupa y la proyección 2D lo hace visible como una región
+separada. En otras palabras, la sensibilidad de UMAP a la topología
+global del vecindario lo convierte en una herramienta útil para detectar
+subpoblaciones que comparten un valor anómalo en alguna variable, aunque
+ese valor no sea el de mayor varianza.</p>
+<hr />
+<p><strong>P7. ¿Qué significa que las distancias globales no son
+confiables en t-SNE?</strong></p>
+<p>Significa que la <strong>distancia entre dos grupos</strong> en el
+gráfico de t-SNE no refleja cuán diferentes son esos grupos en el
+espacio original. t-SNE “empuja” los puntos para que los vecinos queden
+juntos, pero ese empuje puede acercar grupos que en realidad son lejanos
+o separar puntos que son moderadamente cercanos, dependiendo de la
+geometría local. La única lectura segura en t-SNE es: “estos dos puntos
+son vecinos en el espacio original” (si están juntos) — no “este grupo
+es más diferente de aquel que de este otro” (si están más o menos
+separados en el plano).</p>
+<hr />
+<p><strong>P8. ¿Pueden usar las coordenadas de t-SNE o UMAP como
+variables de entrada para un modelo predictivo?</strong></p>
+<p>No es recomendable, por varias razones:</p>
+<ul>
+<li><strong>t-SNE</strong> no define ninguna función de proyección para
+observaciones nuevas — no existe ninguna fórmula que proyecte un lote
+nuevo que no estuviese en el entrenamiento. Para proyectar datos nuevos
+habría que reentrenar desde cero, lo que cambiaría las coordenadas de
+todos los puntos existentes.</li>
+<li><strong>UMAP</strong> sí tiene <code>umap_transform()</code>, pero
+la proyección depende del grafo de vecinos ajustado, no es una función
+lineal cerrada y puede comportarse mal con observaciones muy distintas
+al conjunto de entrenamiento.</li>
+<li><strong>Ambos</strong> distorsionan las distancias de formas que
+cambian con la semilla y los parámetros: dos corridas con semillas
+distintas pueden producir coordenadas completamente diferentes, haciendo
+que cualquier modelo entrenado con las coordenadas de una corrida sea
+inutilizable con las de la otra.</li>
+</ul>
+<p>PCA, en cambio, proyecta cualquier observación nueva con una
+multiplicación matricial fija (<span class="math inline">\(z = x^*
+A\)</span>), sin cambiar nada del modelo ya ajustado — eso lo hace apto
+como preproceso para modelamiento.</p>
+<hr />
+<p><strong>P9. ¿Qué es el valor propio de una componente y cómo se
+diferencia del porcentaje de varianza?</strong></p>
+<p>El valor propio <span class="math inline">\(\lambda_i\)</span> es la
+varianza de los scores en la componente <span class="math inline">\(i\)</span> — literalmente, qué tan dispersos están
+los 1.070 lotes proyectados sobre ese eje. Como los datos están
+estandarizados, la suma de todos los valores propios es <span class="math inline">\(p = 14\)</span> (varianza 1 por variable). El
+porcentaje de varianza explicada de la componente <span class="math inline">\(i\)</span> se obtiene dividiendo: <span class="math inline">\(\lambda_i / p = \lambda_i / 14\)</span>. Así, PC1
+con <span class="math inline">\(\lambda_1 = 6.68\)</span> explica <span class="math inline">\(6.68/14 = 47.7\%\)</span>. El valor propio es la
+cifra absoluta de varianza; el porcentaje es su proporción respecto del
+total — son dos formas de expresar la misma información, y el criterio
+de Kaiser usa el valor propio absoluto (<span class="math inline">\(&gt;
+1\)</span>), no el porcentaje.</p>
+<hr />
+<p><strong>P10. ¿Qué encontraron en general con este análisis? ¿Cuál es
+el hallazgo más importante?</strong></p>
+<p>Tres hallazgos principales:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>La calidad sensorial del café arábica es fundamentalmente
+unidimensional:</strong> un solo eje (PC1, 47.7% de la varianza) resume
+casi toda la variación entre los 1.070 lotes. Los diez puntajes de
+catación se mueven en conjunto, lo que indica que un catador que evalúa
+Aroma predice bien los demás atributos — la calidad “de taza” es un
+espectro continuo, no una combinación independiente de
+atributos.</p></li>
+<li><p><strong>Calidad sensorial y calidad física son
+ortogonales:</strong> PC2 revela que los defectos físicos
+(Category.One/Two.Defects, Moisture) varían de forma casi independiente
+de los puntajes sensoriales. Un lote puede ser excelente en catación y
+aun así tener muchos defectos físicos, o viceversa — información que
+ningún método no lineal añade sobre esto.</p></li>
+<li><p><strong>UMAP detectó un problema de calidad de datos:</strong>
+174 lotes con <code>Moisture = 0</code> (un valor físicamente imposible
+para granos de café) aparecen como un grupo separado en UMAP pero se
+mezclan con el resto en PCA, Kernel PCA y t-SNE. Este hallazgo sugiere
+que esos registros tienen valores faltantes codificados como cero en vez
+de NA — algo que debe corregirse antes de cualquier análisis
+posterior.</p></li>
+</ol>
 <p>Contenido de referencia para preparar las diapositivas (ver
-estructura sugerida del taller) y anticipar preguntas de sustentación —
-no requiere código adicional; se construye a partir de las secciones
-anteriores.</p>
+estructura sugerida del taller) — no requiere código adicional; se
+construye a partir de las secciones anteriores.</p>
 <hr />
 </div>
 <div id="pregunta-final" class="section level1">

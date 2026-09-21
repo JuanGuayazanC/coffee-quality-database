@@ -1,0 +1,154 @@
+---
+title: "PCA alternativo con variables transformadas (documento de respaldo)"
+subtitle: "Coffee Quality Institute — análisis de sensibilidad a la asimetría"
+author: "Juan Sebastian"
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                       fig.align = "center", fig.width = 8, fig.height = 7)
+```
+
+> **Qué es este documento.** El informe principal (`informe_taller_pca.Rmd`, secciones 3.1–3.2) detectó que `Moisture`, `Category.One.Defects` y `Category.Two.Defects` están sesgadas, y probó a corregir ese sesgo con una transformación de Yeo-Johnson antes de PCA. Al estimar el parámetro $\lambda$ por máxima verosimilitud, solo `Category.Two.Defects` obtuvo un ajuste estable ($\lambda \approx -0.22$); `Moisture` y `Category.One.Defects` resultaron estar **infladas en cero** (174/1070 lotes con `Moisture = 0`, la mayoría con `Category.One.Defects = 0`) — un problema de calidad de datos que una transformación de potencia no corrige, no una asimetría genuina. La decisión para la entrega fue **mantener el PCA sin transformar** como el oficial, porque PC1 (el hallazgo principal) resultó ser completamente insensible a la corrección. Este documento existe como **respaldo**: repite el análisis completo de PCA transformando únicamente `Category.Two.Defects` — la única variable donde la transformación está bien fundamentada — listo para presentarse si se pide adoptar esa versión en lugar de la oficial.
+
+---
+
+# 1. Datos y transformación
+
+Mismo conjunto de datos y mismo tratamiento que el informe principal (1070 lotes, 14 variables). La única diferencia es que, antes de estandarizar, se aplica una transformación de Yeo-Johnson a `Category.Two.Defects`, con el $\lambda$ estimado por máxima verosimilitud en la sección 3.2 del informe principal:
+
+```{r datos}
+library(dplyr)
+
+yeojohnson_transform <- function(x, lambda) {
+  if (lambda != 0) ((x + 1)^lambda - 1) / lambda else log(x + 1)
+}
+yeojohnson_loglik <- function(lambda, x) {
+  y <- yeojohnson_transform(x, lambda)
+  -length(x) / 2 * log(var(y)) + (lambda - 1) * sum(log(x + 1))
+}
+yeojohnson_fit <- function(x) {
+  optimize(yeojohnson_loglik, interval = c(-5, 5), x = x, maximum = TRUE)$maximum
+}
+
+data <- read.csv("../data/arabica_data_cleaned.csv")
+
+vars_cuantitativas <- c("Aroma", "Flavor", "Aftertaste", "Acidity", "Body",
+                         "Balance", "Uniformity", "Clean.Cup", "Sweetness",
+                         "Cupper.Points", "Moisture", "Category.One.Defects",
+                         "Category.Two.Defects", "altitude_mean_meters")
+
+data_f <- data %>%
+  filter(is.na(altitude_mean_meters) | (altitude_mean_meters > 0 & altitude_mean_meters <= 3000)) %>%
+  filter(!is.na(altitude_mean_meters))
+
+datos <- data_f %>% select(all_of(vars_cuantitativas))
+
+lambda_c2 <- yeojohnson_fit(datos$Category.Two.Defects)
+lambda_c2   # ~ -0.217
+
+datos_t <- datos
+datos_t$Category.Two.Defects <- yeojohnson_transform(datos$Category.Two.Defects, lambda_c2)
+```
+
+Las otras 13 variables se dejan sin transformar. `Moisture` y `Category.One.Defects` no se corrigen por la razón ya explicada (inflación en cero, no asimetría corregible); las demás no muestran un sesgo que ameritara la corrección (sección 3.1 del informe principal).
+
+---
+
+# 2. PCA sobre las variables transformadas
+
+Mismo procedimiento que la sección 5 del informe principal: estandarizar (`center = TRUE, scale. = TRUE`) y diagonalizar $R$.
+
+```{r pca}
+pca_t <- prcomp(datos_t, center = TRUE, scale. = TRUE)
+summary(pca_t)
+```
+
+## 2.1. Selección del número de componentes
+
+```{r screeplot}
+screeplot(pca_t, type = "lines", main = "Gráfico de codo - PCA café (Category.Two.Defects transformada)")
+sum(pca_t$sdev^2 > 1)  # criterio de Kaiser
+```
+
+**La decisión no cambia: se conservan k = 4 componentes.** El criterio de Kaiser sigue dando exactamente 4 valores propios mayores que 1, y la varianza acumulada apenas se mueve (**73.7 %** vs. 74.6 % sin transformar) — la corrección de sesgo no altera cuánta información retienen 4 componentes, solo **qué representa cada una a partir de PC2**, que en este caso cambia de forma considerable (ver interpretación abajo).
+
+---
+
+# 3. Interpretación de las componentes
+
+```{r cargas}
+round(pca_t$rotation[, 1:4], 3)
+```
+
+### PC1 (47.6 % de la varianza) — "calidad sensorial general" (sin cambios)
+
+- **Variables con mayor peso:** los siete puntajes de intensidad sensorial (Flavor −0.362, Aftertaste −0.359, Balance −0.346, Acidity −0.338, Cupper.Points −0.337, Body −0.337, Aroma −0.333), igual que en el análisis original.
+- **Variables con comportamientos similares:** Uniformity (−0.234), Sweetness (−0.223), Clean.Cup (−0.216).
+- **Variables que aparecen en sentidos opuestos:** ninguna con peso relevante — `Moisture` (0.071), `Category.One.Defects` (0.039), `Category.Two.Defects` (0.074, ya transformada) y `altitude_mean_meters` (−0.071) siguen siendo prácticamente nulas.
+- **Significado:** idéntico al PC1 del análisis original — `Category.Two.Defects` no tenía peso en este eje, así que corregir su sesgo no lo toca en absoluto.
+
+### PC2 (9.6 %) — "consistencia y dulzura de taza, con humedad" (cambia de forma sustancial)
+
+- **Variables con mayor peso:** Sweetness (0.533), Clean.Cup (0.468) y Uniformity (0.458) — el mismo bloque que en el análisis original definía PC3, ahora sube a PC2.
+- **Variables con comportamientos similares:** `Moisture` (0.368) se suma con el mismo signo.
+- **Variables que aparecen en sentidos opuestos:** los siete puntajes de intensidad sensorial, todos con carga negativa moderada (−0.10 a −0.14), y `altitude_mean_meters` (−0.200).
+- **Significado:** en el análisis original, PC2 era casi exclusivamente "defectos físicos" (`Category.One/Two.Defects` dominaban con cargas ≈ −0.66). Al corregir el sesgo de `Category.Two.Defects`, esa variable deja de tener peso dominante en ningún eje único, y lo que emerge en su lugar en la posición de PC2 es el contraste "consistencia/dulzura de taza vs. intensidad sensorial" que antes aparecía en PC3. Es el cambio más importante que introduce la transformación.
+
+### PC3 (9.0 %) — "defectos y humedad" (lo que antes era PC2, ahora en tercer lugar)
+
+- **Variables con mayor peso:** `Category.Two.Defects` (0.652, ya transformada) y `Category.One.Defects` (0.535).
+- **Variables con comportamientos similares:** `Moisture` (0.405) y `altitude_mean_meters` (0.248) se suman con el mismo signo.
+- **Variables que aparecen en sentidos opuestos:** ninguna con peso apreciable (`Clean.Cup` −0.179 es la más notoria, pero modesta).
+- **Significado:** el bloque de "defectos físicos" del análisis original no desaparece — simplemente se reordena a la tercera posición en vez de la segunda, con una lectura casi idéntica (defectos y humedad, casi ortogonal a la calidad sensorial de PC1).
+
+### PC4 (7.5 %) — "altitud, con defectos primarios más claramente opuestos"
+
+- **Variables con mayor peso:** `altitude_mean_meters` (0.754), igual de dominante que en el análisis original (0.791).
+- **Variables que aparecen en sentidos opuestos:** `Category.One.Defects` (−0.594) — más del doble de fuerte que en el análisis original (−0.237) — es la carga que más se acentúa con la transformación.
+- **Variables con comportamientos similares:** `Moisture` (0.219, menor que el 0.545 original).
+- **Significado:** el mismo eje agroclimático del análisis original, pero con la oposición altitud/humedad vs. defectos primarios bastante más marcada.
+
+**En síntesis:** transformar únicamente `Category.Two.Defects` no elimina ninguna de las cuatro historias del análisis original (calidad sensorial, defectos físicos, consistencia/dulzura, altitud) — las reordena: el bloque de "defectos" pasa de PC2 a PC3, y el de "consistencia/dulzura" pasa de PC3 a PC2. PC1 permanece intacto en cualquier caso.
+
+---
+
+# 4. Matriz de dispersión de las componentes
+
+```{r pairs, fig.height=8}
+k <- 4
+pairs(pca_t$x[, 1:k],
+      main = "Matriz de dispersión - Componentes principales (Category.Two.Defects transformada)",
+      pch = 19, col = adjustcolor("darkorange", alpha.f = 0.4))
+```
+
+El patrón general no cambia frente al análisis original (sección 8 del informe principal): sigue sin haber agrupamientos discretos, la nube es continua en todos los pares de componentes. Lo que sí cambia, como muestra la sección 3.2 del informe principal, es que los dos lotes con más defectos ya no aparecen como los puntos más extremos de la componente que antes era PC2 (ahora PC3) — su posición dentro de la nube es mucho menos periférica.
+
+---
+
+# 5. Biplot (PC1 vs PC2)
+
+```{r biplot, fig.height=8}
+biplot(pca_t, choices = c(1, 2), cex = 0.6,
+       main = "Biplot PCA - Componentes 1 y 2 (Category.Two.Defects transformada)")
+```
+
+El haz de flechas sensoriales en PC1 no cambia frente al biplot original (sección 9 del informe principal). Lo que sí cambia es qué variables definen el eje vertical: aquí son `Sweetness`, `Clean.Cup` y `Uniformity` (antes era el bloque de defectos) — visualmente coherente con que PC2 pasó a representar consistencia/dulzura de taza en vez de defectos físicos.
+
+---
+
+# 6. Qué faltaría si se adopta esta versión
+
+Este documento cubre PCA (secciones 5–9 del informe principal). Si se decide adoptar la versión transformada como oficial, faltaría:
+
+- **Kernel PCA, t-SNE y UMAP:** se ejecutan con el mismo código del informe principal (secciones 10–13), reemplazando `datos` por `datos_t` antes de estandarizar. Deberían re-ejecutarse y revisarse antes de presentarlos, no asumir que el resultado visual es idéntico.
+- **Sección 14 (comparación) y sección 15 (conclusiones):** habría que actualizar cuál componente representa cada historia — la de "defectos" pasa a ser PC3, no PC2, y PC2 pasa a leerse como "consistencia y dulzura de taza".
+- **Diapositivas:** la tabla de cargas y cualquier mención textual a "PC2 = defectos" tendría que decir "PC3 = defectos y humedad" y "PC2 = consistencia/dulzura de taza".

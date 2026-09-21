@@ -312,6 +312,17 @@ Lo que el biplot añade frente a la matriz de dispersión es la **dirección y m
 ```{r kpca}
 library(kernlab)
 
+# KERNEL PCA: hace PCA en un espacio de dimensión mucho mayor sin construirlo
+# explícitamente (el "truco del kernel"). En vez de diagonalizar S o R, diagonaliza
+# la matriz de kernel K (n x n), donde K_ij = k(x_i, x_j) mide la similitud entre
+# los lotes i y j.
+#
+# Kernel RBF (gaussiano):  k(x, y) = exp(-sigma * ||x - y||^2)
+# Es una similitud que vale 1 si los lotes son idénticos y decae con la distancia.
+# sigma regula esa caída: sigma grande -> solo los vecinos muy cercanos se parecen.
+#
+# Hay que estandarizar antes: el kernel usa distancias euclidianas, y sin estandarizar
+# la altitud (en metros) dominaría por completo ||x - y||.
 datos_esc <- as.data.frame(scale(datos))
 
 kp <- kpca(~., data = datos_esc,
@@ -319,6 +330,9 @@ kp <- kpca(~., data = datos_esc,
            kpar = list(sigma = 0.05),
            features = 5)
 
+# Valores propios de la matriz de kernel: el análogo a los lambda del PCA.
+# Su proporción cumple el mismo papel que la varianza explicada, pero calculada
+# solo sobre las componentes retenidas (features = 5), no sobre todo el espacio.
 eig <- kp@eig
 var_exp <- eig / sum(eig)
 round(var_exp, 3)
@@ -332,6 +346,10 @@ Con `sigma = 0.05` y 5 features, la variabilidad se reparte de forma más unifor
 # 11. Matriz de dispersión de Kernel PCA
 
 ```{r pairs-kpca, fig.height=8}
+# rotated(): coordenadas de los lotes en el espacio transformado por el kernel.
+# Es el equivalente a pca$x, con una diferencia clave: aquí NO hay cargas, porque
+# los ejes no son combinaciones lineales de las variables originales. Por eso estas
+# coordenadas solo se interpretan de forma relacional: quién queda cerca de quién.
 scores_kpca <- rotated(kp)
 pairs(scores_kpca[, 1:5],
       main = "Matriz de dispersión - Kernel PCA (café, sigma = 0.05)",
@@ -368,9 +386,20 @@ Al aumentar `sigma` a 1 (vecindades más "anchas", similitud menos local), el an
 ```{r tsne}
 library(Rtsne)
 
-X <- scale(datos)
+# t-SNE traduce distancias a PROBABILIDADES DE VECINDAD:
+#   1. en el espacio original calcula p_ij = probabilidad de que i tome a j como
+#      vecino, usando un kernel gaussiano centrado en cada punto;
+#   2. en el plano 2D calcula q_ij con una distribución t de Student (de colas
+#      pesadas, para que los puntos lejanos puedan separarse sin penalización);
+#   3. mueve los puntos del plano hasta minimizar la divergencia de Kullback-Leibler
+#      entre p y q, es decir, hasta que las vecindades se parezcan lo más posible.
+# Por eso preserva la estructura LOCAL y distorsiona a propósito las distancias globales.
 
-set.seed(123)
+X <- scale(datos)   # usa distancias euclidianas: hay que estandarizar
+
+set.seed(123)       # la optimización arranca de una configuración aleatoria
+# perplexity: número efectivo de vecinos que se intenta preservar por punto.
+# theta: aproximación de Barnes-Hut (0 = cálculo exacto pero mucho más lento).
 tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
 
 plot(tsne$Y,
@@ -408,9 +437,19 @@ Con `perplexity = 5` (vecindarios mucho más pequeños) la nube se fragmenta en 
 ```{r umap}
 library(uwot)
 
+# UMAP parte de una idea distinta a la de t-SNE:
+#   1. construye un grafo de los k vecinos más cercanos, con pesos difusos que
+#      representan la "probabilidad" de que dos lotes estén conectados;
+#   2. busca una disposición en 2D cuyo grafo de vecindades se parezca lo más
+#      posible al original (minimizando una entropía cruzada).
+# Al trabajar sobre un grafo global y no solo sobre pares, conserva mejor las
+# distancias relativas ENTRE grupos, no solo dentro de cada vecindario.
+
 X <- scale(datos)
 
 set.seed(123)
+# n_neighbors (por defecto 15): tamaño del vecindario. Pequeño -> estructura local;
+# grande -> estructura más global.
 um <- umap(X)
 head(um)
 

@@ -79,16 +79,29 @@ Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin dato
 # 3. Exploración inicial
 
 ```{r exploracion}
+# La matriz de datos es un arreglo de n filas (lotes) x p columnas (variables).
+# Todo el análisis multivariado parte de ella.
+
+# str(): estructura interna, qué tipo es cada variable
 str(datos)
+# dim(): las dimensiones n x p de la matriz
 dim(datos)
+# head(): primeras filas, para ver el formato de un registro
 head(datos)
+# summary(): medidas de localización y dispersión UNIVARIADAS, variable por variable.
+# Todavía no hay nada multivariado aquí: cada columna se mira por separado.
 summary(datos)
+# Conteo de datos faltantes por variable
 colSums(is.na(datos))
 ```
 
 Examine también las relaciones entre las variables:
 
 ```{r correlacion}
+# Matriz de correlaciones R (p x p): es la matriz de covarianzas de las variables
+# ya estandarizadas. Cada r_ij está entre -1 y 1 y mide la asociación LINEAL entre
+# las variables i y j, sin unidades.
+# Clave: a diferencia de S, R no cambia si se reescalan las variables.
 cor(datos)
 ```
 
@@ -105,6 +118,11 @@ cor(datos)
 # 4. Matriz de varianzas-covarianzas y medidas de variabilidad
 
 ```{r covarianza}
+# Matriz de varianzas-covarianzas S (p x p, simétrica):
+#   - en la DIAGONAL, s_ii = var(X_i), la varianza de cada variable;
+#   - FUERA de la diagonal, s_ij = cov(X_i, X_j), que mide cómo varían juntas dos
+#     variables (positiva = suben juntas, negativa = una sube cuando la otra baja).
+# S sí depende de las unidades de medida: por eso la altitud, en metros, la domina.
 S <- cov(datos)
 signif(S, 3)
 ```
@@ -112,6 +130,9 @@ signif(S, 3)
 ## 4.1. Varianza total
 
 ```{r var-total}
+# Varianza total = traza de S = suma de la diagonal = suma de las varianzas individuales.
+# Resume la dispersión global en un solo número, pero IGNORA las covarianzas:
+# no dice nada sobre cómo se relacionan las variables entre sí.
 varianza_total <- sum(diag(S))
 varianza_total
 ```
@@ -121,6 +142,10 @@ La varianza total (**≈ 174 690**) está dominada casi por completo por `altitu
 ## 4.2. Varianza generalizada
 
 ```{r var-generalizada}
+# Varianza generalizada = determinante de S.
+# Sí recoge la variabilidad CONJUNTA: es proporcional al volumen del elipsoide de
+# dispersión que forman los datos. Si dos variables son casi linealmente dependientes,
+# ese elipsoide se aplasta contra un plano y det(S) tiende a 0.
 varianza_generalizada <- det(S)
 varianza_generalizada
 ```
@@ -128,8 +153,14 @@ varianza_generalizada
 El determinante de `S` es **≈ 2.88 × 10⁻⁷**, un número extremadamente pequeño. Esto **no** indica multicolinealidad extrema en términos relativos: es otro artefacto de escala, porque el determinante es un producto de varianzas y covarianzas en unidades muy distintas (metros² frente a escalas 0–10²), lo que aplasta el valor. Por eso la comparación cruda entre varianza total y generalizada no es directamente interpretable aquí sin normalizar.
 
 ```{r var-promedio}
+# p = número de variables
 p <- ncol(datos)
+# Varianza total media = traza(S)/p: la varianza promedio por variable.
 varianza_total_media <- varianza_total / p
+# Varianza generalizada media = raíz p-ésima de det(S): lleva ese "volumen"
+# de vuelta a una escala por variable, comparable con la anterior.
+# Ambas corrigen por la dimensión p, así que permiten comparar conjuntos con
+# distinto número de variables.
 varianza_generalizada_media <- varianza_generalizada^(1 / p)
 varianza_total_media
 varianza_generalizada_media

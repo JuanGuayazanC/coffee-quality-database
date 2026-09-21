@@ -4082,8 +4082,8 @@ costosa)</td>
 <td>Posible pero requiere reevaluar el kernel contra los datos de
 entrenamiento</td>
 <td>No definida de forma nativa</td>
-<td>No definida de forma nativa (existen aproximaciones, no
-exactas)</td>
+<td>Sí, vía <code>uwot::umap_transform()</code> (usa el grafo de vecinos
+ya ajustado; no es una proyección lineal cerrada como PCA)</td>
 </tr>
 <tr class="odd">
 <td>Principales limitaciones</td>
@@ -4123,8 +4123,12 @@ la pregunta central del taller (sección 1).</p>
 <ul>
 <li><strong>Reducción dimensional para análisis / generación de
 variables para modelos:</strong> PCA (y, con más cuidado, Kernel PCA)
-son los únicos que producen ejes con una regla de proyección fija y
-reutilizable sobre observaciones nuevas.</li>
+producen ejes con una regla de proyección fija y reutilizable sobre
+observaciones nuevas. UMAP también admite transformar observaciones
+nuevas (<code>uwot::umap_transform()</code>), aunque —a diferencia de
+PCA— no es una función lineal cerrada, sino que depende del grafo de
+vecinos ya ajustado; t-SNE es el único de los cuatro que no ofrece nada
+equivalente.</li>
 <li><strong>Visualización exploratoria / identificación de agrupamientos
 y atípicos:</strong> las cuatro técnicas sirven, pero t-SNE y UMAP son
 las más informativas para vecindades locales — aunque, como muestra el
@@ -4136,10 +4140,11 @@ registrada como 0) y no una subpoblación real de café.</li>
 no garantiza una buena transformación para un modelo
 predictivo?</strong> Porque t-SNE y UMAP distorsionan deliberadamente
 las distancias globales para privilegiar la vecindad local, no son
-invertibles, no se definen mediante una función fija aplicable a
-observaciones nuevas (a diferencia de PCA/Kernel PCA), y su resultado
-cambia con la semilla aleatoria y con parámetros como
-<code>perplexity</code> o <code>n_neighbors</code>. Son herramientas de
+invertibles, y su resultado cambia con la semilla aleatoria y con
+parámetros como <code>perplexity</code> o <code>n_neighbors</code>;
+t-SNE, además, no se define mediante ninguna función aplicable a
+observaciones nuevas (a diferencia de PCA, Kernel PCA y, con matices,
+UMAP vía <code>umap_transform()</code>). Son, ante todo, herramientas de
 visualización/exploración, no de generación de variables estables para
 un pipeline de modelamiento — y, como se vio en la sección 13, pueden
 hacer visualmente prominente un artefacto de captura de datos.</p>

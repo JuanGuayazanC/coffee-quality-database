@@ -3882,14 +3882,34 @@ maximizan varianza; Kernel PCA busca esas combinaciones en un espacio
 transformado no lineal, por lo que puede separar estructuras que PCA
 lineal no distingue (curvas, anillos, clústeres no separables
 linealmente).</li>
-<li><strong>Kernel usado:</strong> RBF (gaussiano),
-<code>kernel = &quot;rbfdot&quot;</code>, por ser el más estándar para capturar
-relaciones no lineales suaves sin imponer una forma funcional
-específica.</li>
-<li><strong>Parámetro principal:</strong> <code>sigma</code>, que
-controla qué tan “local” es la noción de similitud entre lotes (sigma
-pequeño = vecindades más estrechas / más no linealidad capturada; sigma
-grande → el comportamiento se acerca más al de un kernel lineal).</li>
+<li><strong>Concepto de kernel:</strong> un kernel es una función <span class="math inline">\(k(x_i, x_j)\)</span> que mide la similitud entre
+dos observaciones directamente, sin necesidad de construir
+explícitamente la transformación <span class="math inline">\(\varphi(x)\)</span> que llevaría los datos al
+espacio de alta dimensión. Basta con calcular los productos internos
+<span class="math inline">\(K_{ij} = \langle \varphi(x_i),\,
+\varphi(x_j) \rangle = k(x_i, x_j)\)</span> para toda la muestra; esto
+es el <em>truco del kernel</em>: operar en el espacio transformado
+(potencialmente de dimensión infinita) a un costo computacional igual al
+de calcular una matriz <span class="math inline">\(n \times n\)</span>
+de similitudes.</li>
+<li><strong>Kernels disponibles en <code>kernlab</code>:</strong>
+<code>rbfdot</code> (RBF/gaussiano — el más versátil para relaciones no
+lineales suaves, parámetro <code>sigma</code>); <code>polydot</code>
+(polinomial, captura interacciones de grado fijo, parámetros
+<code>degree</code>, <code>scale</code>, <code>offset</code>);
+<code>vanilladot</code> (lineal — Kernel PCA con este kernel reproduce
+PCA convencional); <code>tanhdot</code> (sigmoide, inspirado en redes
+neuronales); <code>laplacedot</code> (Laplaciano, más robusto a outliers
+que RBF); <code>besseldot</code>, <code>anovadot</code> y
+<code>splinedot</code> (kernels de uso más especializado). Se eligió
+<code>rbfdot</code> porque es el estándar para datos continuos y suaves
+sin estructura de grado polinomial conocido.</li>
+<li><strong>Principales parámetros:</strong> <code>sigma</code>
+(controla qué tan “local” es la similitud: sigma pequeño → solo vecinos
+muy próximos se consideran similares, captura no linealidades más finas;
+sigma grande → el comportamiento se aproxima al kernel lineal);
+<code>features</code> (número de componentes de Kernel PCA a
+retener).</li>
 <li><strong>Interpretación de las coordenadas:</strong> a diferencia de
 PCA, no son combinaciones lineales directas de las variables originales,
 por lo que no se leen mediante cargas (<code>rotation</code>) sino de
@@ -3966,6 +3986,17 @@ característico de aplicar un kernel RBF de sigma pequeño sobre datos
 que, en el fondo, varían principalmente a lo largo de un solo gradiente
 continuo (aquí, el gradiente de calidad sensorial de PC1): el kernel
 “curva” ese gradiente en un arco.</p>
+<p><strong>Posibles observaciones atípicas en Kernel PCA:</strong> los
+mismos lotes atípicos identificados en PCA (el lote con todos los
+puntajes en cero, los lotes con 30+ defectos, los de altitud = 1 m)
+tienden a aparecer en los extremos del anillo o en posiciones
+periféricas dentro de la estructura del Kernel PCA. Sin embargo, la
+transformación no lineal los “redistribuye” respecto de su posición en
+PCA: el kernel RBF asigna similitud casi nula entre un lote extremo y el
+resto (por distancia euclidiana grande en el espacio estandarizado), lo
+que los empuja a los bordes de la estructura. No se crean nuevos
+atípicos por efecto del kernel, pero los ya existentes cambian de
+posición relativa respecto del grueso de los datos.</p>
 <p><strong>Variación de un parámetro (sigma):</strong></p>
 <pre class="r"><code>kp_sigma_alto &lt;- kpca(~., data = datos_esc,
                        kernel = &quot;rbfdot&quot;,
@@ -3993,6 +4024,17 @@ punto importante para la discusión crítica del taller.</p>
 <strong>vecindad local</strong> (qué observaciones son “vecinas” de
 cuáles), sacrificando la fidelidad de las distancias globales entre
 grupos alejados.</li>
+<li><strong>Importancia de las relaciones de vecindad:</strong> en
+t-SNE, la unidad interpretativa fundamental no es la distancia entre dos
+puntos cualesquiera del gráfico, sino si dos puntos son <em>vecinos
+locales</em> en el espacio original. Dos lotes que aparecen juntos en el
+plano 2D tienen alta probabilidad <span class="math inline">\(p_{ij}\)</span> de ser vecinos en el espacio de 14
+variables; dos lotes que aparecen lejos pueden no ser realmente
+distantes en el original (t-SNE distorsiona las distancias globales a
+propósito). Por eso la lectura correcta es: “estos lotes comparten un
+perfil de calidad similar” (si están juntos), pero no “estos grupos
+están más separados que aquellos” (la distancia entre grupos no es
+confiable).</li>
 <li><strong>Parámetros principales:</strong> <code>perplexity</code>
 (tamaño efectivo de vecindario que se intenta preservar; regla práctica
 para ~1000 muestras: 20–50), <code>theta</code> (aproximación de
@@ -4049,6 +4091,22 @@ consistente con lo observado en PCA: los lotes de café arábica de este
 dataset forman un continuo de calidad más que grupos naturales bien
 definidos. Se aprecia una leve concentración adicional en la parte
 superior izquierda, pero sin un vacío claro que la separe del resto.</p>
+<p><strong>Vecindades:</strong> dentro de la nube, la densidad es mayor
+en la zona central, lo que indica que la mayoría de los lotes son
+vecinos entre sí en el espacio original — sus perfiles de calidad son
+similares y t-SNE los agrupa en la misma región densa. Las zonas más
+periféricas de la nube corresponden a lotes cuyo perfil sensorial o de
+defectos se aleja moderadamente de la media, sin llegar a ser
+extremos.</p>
+<p><strong>Observaciones aisladas:</strong> se identifican unos pocos
+puntos claramente desplazados de la nube principal — en particular uno
+muy alejado en el extremo de la nube. Corresponde al lote con todos los
+puntajes sensoriales en cero (identificado como atípico en PCA, sección
+8): su vecindario en el espacio original es vacío (no hay ningún otro
+lote con perfil similar), y t-SNE lo expulsa a una posición periférica
+del gráfico. Los lotes con 30+ defectos también aparecen en la
+periferia, aunque menos separados que en PCA porque la transformación de
+t-SNE no conserva esas distancias globales.</p>
 <p><strong>Variación de un parámetro (perplexity):</strong></p>
 <pre class="r"><code>set.seed(123)
 tsne_perp5 &lt;- Rtsne(X, dims = 2, perplexity = 5, theta = 0.5)
@@ -4128,6 +4186,22 @@ head(um)</code></pre>
 claridad dos grupos</strong>: una nube principal alargada y un grupo
 secundario, más pequeño y compacto, claramente distanciado del resto
 (parte inferior del gráfico).</p>
+<p><strong>Vecindades:</strong> dentro de la nube principal, los lotes
+que aparecen próximos comparten un perfil de calidad similar en las 14
+variables (vecinos en el espacio de 14 dimensiones). La nube alargada
+sugiere un gradiente continuo de calidad — coherente con PC1 —, no
+grupos discretos; lotes en un mismo extremo de esa nube tienen perfiles
+más cercanos entre sí que con los del extremo opuesto, y UMAP lo refleja
+manteniéndolos en posiciones alejadas dentro de la nube.</p>
+<p><strong>Observaciones aisladas:</strong> entre los dos grupos se
+observan unos pocos puntos que no pertenecen claramente a ninguno: lotes
+con <code>Moisture</code> bajo pero no exactamente cero, o con alguna
+variable en un rango intermedio atípico. Son los “puentes” entre el
+grupo Moisture=0 y el resto — lotes que en el grafo de vecinos de UMAP
+quedaron conectados parcialmente a ambas regiones, y el algoritmo los
+sitúa en tierra de nadie entre los dos grupos. No deben interpretarse
+como un tercer grupo sino como observaciones cuyo perfil no encaja
+perfectamente en ninguno de los dos conjuntos identificados.</p>
 <pre class="r"><code>cluster_bajo &lt;- um[, 2] &lt; -5
 sum(cluster_bajo)</code></pre>
 <pre><code>## [1] 197</code></pre>

@@ -175,6 +175,15 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 **Decisión: ESTANDARIZAR.** Las variables tienen unidades y escalas muy distintas (metros vs. puntaje 0–10 vs. porcentaje vs. conteo de defectos). Sin estandarizar, `altitude_mean_meters` dominaría por completo la varianza total y, por tanto, el primer componente, ocultando la estructura de los puntajes sensoriales que es el objeto real de interés del análisis.
 
 ```{r pca}
+# PCA = descomposición espectral de la matriz de correlaciones R.
+# Busca direcciones ORTOGONALES (los vectores propios) tales que la primera recoge
+# la mayor varianza posible, la segunda la mayor varianza restante, y así.
+# Cada valor propio lambda_i es la varianza que explica su componente.
+#
+# center = TRUE  -> resta la media de cada variable
+# scale.  = TRUE -> divide por la desviación estándar
+# Con ambos, prcomp trabaja sobre R (correlaciones) en vez de sobre S (covarianzas),
+# que es justo lo que necesitamos porque las unidades aquí no son comparables.
 pca <- prcomp(datos, center = TRUE, scale. = TRUE)
 ```
 
@@ -183,11 +192,20 @@ pca <- prcomp(datos, center = TRUE, scale. = TRUE)
 # 6. Selección del número de componentes
 
 ```{r resumen-pca}
+# summary(): desviación estándar de cada componente, su proporción de varianza
+# explicada y la acumulada.
 summary(pca)
+# Los VALORES PROPIOS: lambda_i = (sdev_i)^2 = varianza de la componente i.
+# Sobre datos estandarizados suman p (aquí 14), porque cada variable estandarizada
+# aporta varianza 1. De ahí el criterio de Kaiser: retener las componentes con
+# lambda > 1, es decir, las que explican más que una variable original por sí sola.
 pca$sdev^2
 ```
 
 ```{r screeplot}
+# Gráfico de codo: los valores propios en orden decreciente.
+# El "codo" es el punto donde la caída se aplana: a partir de ahí cada componente
+# adicional aporta poca varianza nueva, y suele tomarse como corte.
 screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
 ```
 
@@ -205,6 +223,13 @@ Justificación:
 # 7. Interpretación de las componentes
 
 ```{r cargas}
+# CARGAS (loadings) = los vectores propios de R.
+# Cada columna es una componente; cada número es el peso de esa variable original
+# dentro de la componente. Una componente se interpreta mirando qué variables tienen
+# carga alta en valor absoluto y con qué signo:
+#   - mismo signo  -> esas variables se mueven juntas en ese eje
+#   - signo opuesto -> se oponen en ese eje
+# El signo global de una componente es arbitrario: lo que importa son los contrastes.
 round(pca$rotation[, 1:4], 3)
 ```
 
@@ -218,11 +243,17 @@ round(pca$rotation[, 1:4], 3)
 # 8. Matriz de gráficos de dispersión de las componentes
 
 ```{r coordenadas}
+# SCORES = coordenadas de cada lote en la nueva base de componentes.
+# Es el mismo dato, visto desde otros ejes: pca$x = datos estandarizados %*% rotation.
 head(pca$x)
 ```
 
 ```{r pairs-pca, fig.height=8}
+# k = número de componentes que decidimos conservar (sección 6)
 k <- 4
+# Matriz de dispersión de las componentes: como son ortogonales entre sí, NO debe
+# verse correlación lineal en ningún panel. Lo que se busca aquí es otra cosa:
+# agrupamientos, patrones y observaciones atípicas.
 pairs(pca$x[, 1:k],
       main = "Matriz de dispersión - Componentes principales (café)",
       pch = 19, col = adjustcolor("steelblue", alpha.f = 0.4))
@@ -250,6 +281,14 @@ Estos patrones se mantienen entre distintos pares de componentes que involucran 
 # 9. Biplot
 
 ```{r biplot, fig.height=8}
+# BIPLOT: superpone en un mismo plano los scores (los lotes, como puntos) y las
+# cargas (las variables, como flechas).
+# Cómo se lee el ángulo entre dos flechas:
+#   - ángulo pequeño  -> variables muy correlacionadas
+#   - ángulo recto    -> variables casi incorreladas
+#   - sentido opuesto -> correlación negativa
+# Y la longitud de la flecha indica qué tan bien representada queda esa variable
+# en este plano de dos componentes.
 biplot(pca, choices = c(1, 2), cex = 0.6,
        main = "Biplot PCA - Componentes 1 y 2 (café)")
 ```

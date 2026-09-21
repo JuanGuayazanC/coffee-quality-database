@@ -239,7 +239,9 @@ sum(pca$sdev^2 > 1)  # número de componentes que cumplen el criterio de Kaiser
 > **Teoría — gráfico de codo.** Grafica los $\lambda_i$ en orden decreciente. El "codo" es el punto donde la caída se aplana: a partir de ahí, cada componente adicional aporta poca varianza nueva, y suele tomarse como punto de corte.
 
 ```{r screeplot}
-screeplot(pca, type = "lines", main = "Gráfico de codo - PCA café")
+screeplot(pca,
+          type = "lines",  # "lines": los lambda_i como puntos unidos por una línea (facilita ver el "codo"); la alternativa es type = "barplot"
+          main = "Gráfico de codo - PCA café")
 ```
 
 **Decisión: se conservan k = 4 componentes.** Justificación, criterio por criterio:
@@ -311,9 +313,10 @@ head(pca$x)
 
 ```{r pairs-pca, fig.height=8}
 k <- 4   # componentes a conservar (decisión de la sección 6)
-pairs(pca$x[, 1:k],
+pairs(pca$x[, 1:k],   # matriz n x k: pairs() grafica cada par de columnas entre sí
       main = "Matriz de dispersión - Componentes principales (café)",
-      pch = 19, col = adjustcolor("steelblue", alpha.f = 0.4))
+      pch = 19,   # 19 = código de símbolo de R para "círculo relleno"
+      col = adjustcolor("steelblue", alpha.f = 0.4))  # adjustcolor(color, alpha.f): mismo color con transparencia (0 = invisible, 1 = opaco); ayuda a ver dónde se acumulan más puntos superpuestos
 ```
 
 No se observan agrupamientos claros: la gran mayoría de las observaciones forma **una sola nube densa y continua**, sin separación en subgrupos. Esto es consistente con que el café arábica de este dataset es relativamente homogéneo en composición (predominan lotes de calidad "especialidad").
@@ -328,7 +331,10 @@ library(GGally)
 pca_scores <- as.data.frame(pca$x[, 1:k])
 pca_scores$Processing.Method <- data_f$Processing.Method
 
-ggpairs(pca_scores, columns = 1:k, aes(color = Processing.Method, alpha = 0.5)) +
+ggpairs(pca_scores,
+        columns = 1:k,                  # qué columnas del data.frame graficar (las k componentes retenidas)
+        aes(color = Processing.Method,  # variable categórica que define el color de cada punto/curva
+            alpha = 0.5)) +             # transparencia de los puntos (0 = invisible, 1 = opaco)
   ggtitle("Matriz de dispersión de componentes principales (color = método de proceso)")
 ```
 

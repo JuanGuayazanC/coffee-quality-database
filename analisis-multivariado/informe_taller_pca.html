@@ -2872,6 +2872,39 @@ el código, las salidas reales obtenidas al ejecutarlo, y una
 interpretación preliminar de cada resultado. Las secciones siguen el
 orden del taller.</p>
 </blockquote>
+<blockquote>
+<p><strong>Notación del curso (primer tercio de la materia).</strong>
+Los bloques de teoría de este informe usan la misma notación vista en
+clase:</p>
+<ul>
+<li><span class="math inline">\(X\)</span>: matriz de datos <span class="math inline">\(n \times p\)</span> (<span class="math inline">\(n\)</span> individuos, <span class="math inline">\(p\)</span> variables); <span class="math inline">\(\bar{x}\)</span>: vector de medias <span class="math inline">\(p \times 1\)</span>, <span class="math inline">\(\bar{x} = \frac{1}{n}X^\top
+\mathbf{1}\)</span>.</li>
+<li><span class="math inline">\(P = I_n -
+\frac{1}{n}\mathbf{1}\mathbf{1}^\top\)</span>: matriz de centrado
+(simétrica e idempotente); <span class="math inline">\(\tilde{X} =
+PX\)</span> es la matriz centrada (a cada dato se le resta la media de
+su columna).</li>
+<li><span class="math inline">\(S = \frac{1}{n}\tilde{X}^\top\tilde{X} =
+\frac{1}{n}X^\top P X\)</span>: matriz de covarianza <span class="math inline">\(p \times p\)</span>.</li>
+<li><span class="math inline">\(D =
+\operatorname{diag}(s_1^2,\dots,s_p^2)\)</span>: varianzas de cada
+variable; <span class="math inline">\(R = D^{-1/2} S D^{-1/2}\)</span>:
+matriz de correlación — el resultado de estandarizar cada variable antes
+de calcular <span class="math inline">\(S\)</span>.</li>
+<li><span class="math inline">\(a\)</span> (o <span class="math inline">\(\omega\)</span>): vector de dirección/combinación
+lineal — “cuánto pesa cada variable”; <span class="math inline">\(\lambda\)</span>: valor propio de <span class="math inline">\(S\)</span> (o de <span class="math inline">\(R\)</span>) — la varianza en la dirección de su
+vector propio.</li>
+<li><span class="math inline">\(A\)</span>: matriz de vectores propios
+(columnas = direcciones <span class="math inline">\(a\)</span>); <span class="math inline">\(\Lambda\)</span>: matriz diagonal de valores
+propios, tal que <span class="math inline">\(S = A\Lambda
+A^\top\)</span>.</li>
+<li><span class="math inline">\(Z = Xa\)</span>: componente/proyección —
+los datos vistos desde la dirección <span class="math inline">\(a\)</span>.</li>
+</ul>
+<p>En R: <code>pca$rotation</code> es <span class="math inline">\(A\)</span> (los vectores propios) y
+<code>pca$x</code> es <span class="math inline">\(Z\)</span> (las
+proyecciones).</p>
+</blockquote>
 <hr />
 <div id="objetivo" class="section level1">
 <h1>1. Objetivo</h1>
@@ -3015,7 +3048,7 @@ p}\)</span>, con <span class="math inline">\(n = 1070\)</span> filas
 {"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["Aroma"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["Flavor"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["Aftertaste"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["Acidity"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["Body"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["Balance"],"name":[6],"type":["dbl"],"align":["right"]},{"label":["Uniformity"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["Clean.Cup"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["Sweetness"],"name":[9],"type":["dbl"],"align":["right"]},{"label":["Cupper.Points"],"name":[10],"type":["dbl"],"align":["right"]},{"label":["Moisture"],"name":[11],"type":["dbl"],"align":["right"]},{"label":["Category.One.Defects"],"name":[12],"type":["int"],"align":["right"]},{"label":["Category.Two.Defects"],"name":[13],"type":["int"],"align":["right"]},{"label":["altitude_mean_meters"],"name":[14],"type":["dbl"],"align":["right"]}],"data":[{"1":"8.67","2":"8.83","3":"8.67","4":"8.75","5":"8.50","6":"8.42","7":"10","8":"10","9":"10.00","10":"8.75","11":"0.12","12":"0","13":"0","14":"2075","_rn_":"1"},{"1":"8.75","2":"8.67","3":"8.50","4":"8.58","5":"8.42","6":"8.42","7":"10","8":"10","9":"10.00","10":"8.58","11":"0.12","12":"0","13":"1","14":"2075","_rn_":"2"},{"1":"8.42","2":"8.50","3":"8.42","4":"8.42","5":"8.33","6":"8.42","7":"10","8":"10","9":"10.00","10":"9.25","11":"0.00","12":"0","13":"0","14":"1700","_rn_":"3"},{"1":"8.17","2":"8.58","3":"8.42","4":"8.42","5":"8.50","6":"8.25","7":"10","8":"10","9":"10.00","10":"8.67","11":"0.11","12":"0","13":"2","14":"2000","_rn_":"4"},{"1":"8.25","2":"8.50","3":"8.25","4":"8.50","5":"8.42","6":"8.33","7":"10","8":"10","9":"10.00","10":"8.58","11":"0.12","12":"0","13":"2","14":"2075","_rn_":"5"},{"1":"8.25","2":"8.33","3":"8.50","4":"8.42","5":"8.33","6":"8.50","7":"10","8":"10","9":"9.33","10":"9.00","11":"0.03","12":"0","13":"0","14":"1635","_rn_":"6"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
-<pre class="r"><code>summary(datos)               # estadísticos de localización y dispersión UNIVARIADOS,</code></pre>
+<pre class="r"><code>summary(datos)               # estadísticos univariados, columna por columna</code></pre>
 <pre><code>##      Aroma          Flavor        Aftertaste       Acidity           Body      
 ##  Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
 ##  1st Qu.:7.42   1st Qu.:7.330   1st Qu.:7.250   1st Qu.:7.330   1st Qu.:7.330  
@@ -3044,8 +3077,7 @@ p}\)</span>, con <span class="math inline">\(n = 1070\)</span> filas
 ##  Mean   :1304        
 ##  3rd Qu.:1600        
 ##  Max.   :2560</code></pre>
-<pre class="r"><code>                              # columna por columna: todavía no hay nada multivariado aquí
-colSums(is.na(datos))          # conteo de datos faltantes por variable</code></pre>
+<pre class="r"><code>colSums(is.na(datos))          # conteo de datos faltantes por variable</code></pre>
 <pre><code>##                Aroma               Flavor           Aftertaste 
 ##                    0                    0                    0 
 ##              Acidity                 Body              Balance 
@@ -3154,8 +3186,10 @@ sabor).</li>
 <div id="matriz-de-varianzas-covarianzas-y-medidas-de-variabilidad" class="section level1">
 <h1>4. Matriz de varianzas-covarianzas y medidas de variabilidad</h1>
 <blockquote>
-<p><strong>Teoría — matriz <span class="math inline">\(S\)</span>.</strong> <span class="math inline">\(S\)</span> es una matriz <span class="math inline">\(p \times p\)</span> y simétrica que resume cómo
-varía cada variable y cómo varían juntas dos variables: <span class="math display">\[ S = \begin{pmatrix} s_{11} &amp; s_{12} &amp;
+<p><strong>Teoría — matriz <span class="math inline">\(S\)</span>.</strong> Se construye centrando
+primero los datos: con <span class="math inline">\(\tilde{X} =
+PX\)</span> (la matriz centrada, usando la matriz de centrado <span class="math inline">\(P\)</span> de la nota de notación), <span class="math display">\[ S = \frac{1}{n}\tilde{X}^\top\tilde{X} =
+\frac{1}{n}X^\top P X \]</span> es una matriz <span class="math inline">\(p \times p\)</span> y simétrica: <span class="math display">\[ S = \begin{pmatrix} s_{11} &amp; s_{12} &amp;
 \cdots &amp; s_{1p} \\ s_{21} &amp; s_{22} &amp; \cdots &amp; s_{2p} \\
 \vdots &amp; \vdots &amp; \ddots &amp; \vdots \\ s_{p1} &amp; s_{p2}
 &amp; \cdots &amp; s_{pp} \end{pmatrix} \]</span> <strong>En la
@@ -3255,23 +3289,37 @@ la razón por la que el PCA se hará sobre datos estandarizados (sección
 <h2>4.2. Varianza generalizada</h2>
 <blockquote>
 <p><strong>Teoría — varianza generalizada.</strong> Es el determinante
-de <span class="math inline">\(S\)</span>: <span class="math display">\[
-\text{Var. generalizada} \;=\; |S| \;=\; \det(S) \]</span> Sí recoge la
-variabilidad <strong>conjunta</strong>: es proporcional al volumen del
-elipsoide de dispersión que forman los datos. Si dos variables son casi
-linealmente dependientes, ese elipsoide se aplasta contra un plano y
-<span class="math inline">\(|S| \to 0\)</span>.</p>
+de <span class="math inline">\(S\)</span>, y equivale al producto de sus
+valores propios: <span class="math display">\[ \text{Var. generalizada}
+\;=\; |S| \;=\; \det(S) \;=\; \prod_{i=1}^{p} \lambda_i \]</span> Es
+proporcional al volumen del elipsoide de dispersión que forman los datos
+(sus semiejes son proporcionales a <span class="math inline">\(\sqrt{\lambda_i}\)</span>). Como todos los <span class="math inline">\(\lambda_i \geq 0\)</span> (S es semidefinida
+positiva), basta con que <strong>uno solo</strong> sea cercano a cero
+para que el producto colapse: <span class="math inline">\(\lambda_i =
+0\)</span> exacto significa colinealidad <strong>exacta</strong> entre
+variables (rango<span class="math inline">\((S) &lt; p\)</span>, <span class="math inline">\(S\)</span> no invertible); <span class="math inline">\(\lambda_i \approx 0\)</span> señala colinealidad
+<strong>casi</strong> exacta. La razón <span class="math inline">\(\lambda_{\min}/\lambda_{\max}\)</span> resume la
+anisotropía: cercana a 0, datos muy alargados en una dirección
+(colinealidad); cercana a 1, dispersión similar en todas
+direcciones.</p>
 </blockquote>
 <pre class="r"><code>varianza_generalizada &lt;- det(S)
 varianza_generalizada</code></pre>
 <pre><code>## [1] 2.880206e-07</code></pre>
 <p>El determinante de <code>S</code> es <strong>≈ 2.88 × 10⁻⁷</strong>,
-un número extremadamente pequeño. Esto <strong>no</strong> indica
-multicolinealidad extrema en términos relativos: es otro artefacto de
-escala, porque el determinante es un producto de varianzas y covarianzas
-en unidades muy distintas (metros² frente a escalas 0–10²), lo que
-aplasta el valor. Por eso la comparación cruda entre varianza total y
-generalizada no es directamente interpretable aquí sin normalizar.</p>
+un número extremadamente pequeño. Aquí, sin embargo, esto
+<strong>no</strong> es evidencia de colinealidad real: es un artefacto
+de escala, porque <span class="math inline">\(S\)</span> se calculó
+sobre las variables en su escala original y el determinante es un
+producto de varianzas y covarianzas en unidades muy distintas (metros²
+frente a escalas 0–10²), lo que aplasta el valor. Para diagnosticar
+colinealidad genuina hay que mirar los valores propios de <span class="math inline">\(R\)</span> en vez de los de <span class="math inline">\(S\)</span> (sección 6, ya sobre variables
+estandarizadas): el mayor es <span class="math inline">\(\lambda_1
+\approx 6.68\)</span> y el menor <span class="math inline">\(\lambda_{14} \approx 0.092\)</span>, es decir
+<span class="math inline">\(\lambda_{\min}/\lambda_{\max} \approx
+0.014\)</span> — bastante alejado de 0 exacto. Hay colinealidad
+<strong>moderada</strong> entre los puntajes sensoriales (coherente con
+sus correlaciones altas), pero no una dependencia lineal exacta.</p>
 <blockquote>
 <p><strong>Teoría — versiones promedio.</strong> Con <span class="math inline">\(p\)</span> el número de variables: <span class="math display">\[ \overline{\text{Var. total}} =
 \frac{\operatorname{tr}(S)}{p}, \qquad \overline{\text{Var.
@@ -3306,18 +3354,36 @@ vs. conteo de defectos). Sin estandarizar,
 total y, por tanto, el primer componente, ocultando la estructura de los
 puntajes sensoriales que es el objeto real de interés del análisis.</p>
 <blockquote>
-<p><strong>Teoría — PCA como descomposición espectral.</strong> PCA
-diagonaliza la matriz de correlaciones <span class="math inline">\(R\)</span>: <span class="math display">\[ R =
-\Gamma \Lambda \Gamma^{\top}, \qquad \Lambda =
-\operatorname{diag}(\lambda_1, \dots, \lambda_p) \]</span> Las columnas
-de <span class="math inline">\(\Gamma\)</span> (los <strong>vectores
-propios</strong>) son direcciones <strong>ortogonales</strong> tales que
-la primera recoge la mayor varianza posible, la segunda la mayor
-varianza restante, y así sucesivamente. Cada valor propio <span class="math inline">\(\lambda_i\)</span> es la varianza que explica su
-componente. En <code>prcomp</code>, <code>center = TRUE</code> resta la
-media de cada variable y <code>scale. = TRUE</code> divide por la
-desviación estándar; con ambos, la función trabaja sobre <span class="math inline">\(R\)</span> en vez de sobre <span class="math inline">\(S\)</span> — justo lo que necesitamos porque las
-unidades aquí no son comparables.</p>
+<p><strong>Teoría — PCA como problema de maximización
+(Lagrange).</strong> Se busca la dirección <span class="math inline">\(a\)</span> (con <span class="math inline">\(\lVert
+a \rVert = 1\)</span>) que maximiza la varianza de la proyección <span class="math inline">\(Z = Xa\)</span>: <span class="math display">\[
+\operatorname{Var}(Z) = a^\top S a \]</span> Maximizando sujeto a la
+restricción <span class="math inline">\(a^\top a = 1\)</span> mediante
+un multiplicador de Lagrange <span class="math inline">\(\lambda\)</span>: <span class="math display">\[ M
+= a^\top S a - \lambda(a^\top a - 1), \qquad \frac{\partial M}{\partial
+a} = 2Sa - 2\lambda a = 0 \;\;\Rightarrow\;\; Sa = \lambda a \]</span>
+Es decir, la dirección que maximiza la varianza es un <strong>vector
+propio</strong> de <span class="math inline">\(S\)</span>, y la varianza
+máxima alcanzada es exactamente su <strong>valor propio</strong>: <span class="math inline">\(\operatorname{Var}(Z) = a^\top S a =
+a^\top(\lambda a) = \lambda \, a^\top a = \lambda\)</span>. Repitiendo
+el argumento, ahora exigiendo ortogonalidad con las componentes ya
+encontradas, se llega a la descomposición completa: <span class="math display">\[ S = A \Lambda A^{\top}, \qquad \Lambda =
+\operatorname{diag}(\lambda_1, \dots, \lambda_p) \]</span> con <span class="math inline">\(A\)</span> la matriz de vectores propios
+(direcciones ortogonales, la primera con la mayor varianza posible, la
+segunda con la mayor varianza restante, y así sucesivamente). Como
+decidimos <strong>estandarizar</strong>, en la práctica no se
+diagonaliza <span class="math inline">\(S\)</span> sino <span class="math inline">\(R = D^{-1/2} S D^{-1/2}\)</span> — la misma
+matemática, aplicada a las variables ya puestas en la misma escala. En
+<code>prcomp</code>, <code>center = TRUE</code> resta la media de cada
+variable y <code>scale. = TRUE</code> divide por la desviación estándar;
+con ambos, la función trabaja sobre <span class="math inline">\(R\)</span> en vez de sobre <span class="math inline">\(S\)</span>. <code>pca$rotation</code> es <span class="math inline">\(A\)</span> y <code>pca$x</code> es <span class="math inline">\(Z = X^{*}A\)</span>.</p>
+<p>Como <span class="math inline">\(A\)</span> es ortogonal (<span class="math inline">\(A A^\top = I\)</span>), esta relación se invierte
+fácilmente: <span class="math inline">\(X^{*} = Z A^\top\)</span>. Por
+eso proyectar una observación <strong>nueva</strong> (ya estandarizada
+con la misma media y desviación de <code>datos</code>) es tan simple
+como multiplicarla por <span class="math inline">\(A\)</span>, y por eso
+PCA sí permite reconstruir (o aproximar, reteniendo solo <span class="math inline">\(k&lt;p\)</span> columnas de <span class="math inline">\(A\)</span>) los datos originales a partir de las
+componentes — algo que t-SNE y UMAP no ofrecen (sección 14).</p>
 </blockquote>
 <pre class="r"><code># center = TRUE  -&gt; resta la media de cada variable
 # scale.  = TRUE -&gt; divide por la desviación estándar
@@ -3387,10 +3453,11 @@ interpretabilidad sobre minimizar k.</li>
 <h1>7. Interpretación de las componentes</h1>
 <blockquote>
 <p><strong>Teoría — cargas (loadings).</strong> Son los vectores propios
-de <span class="math inline">\(R\)</span>: cada columna de
-<code>pca$rotation</code> es una componente, calculada como <span class="math display">\[ Z_k = \gamma_{1k} X_1^{*} + \gamma_{2k} X_2^{*}
-+ \cdots + \gamma_{pk} X_p^{*} \]</span> donde <span class="math inline">\(X_i^{*}\)</span> son las variables estandarizadas
-y <span class="math inline">\(\gamma_{ik}\)</span> (la carga de <span class="math inline">\(X_i\)</span> en la componente <span class="math inline">\(k\)</span>) es el peso de esa variable original
+de <span class="math inline">\(R\)</span> (la matriz <span class="math inline">\(A\)</span> de la sección anterior): cada columna
+de <code>pca$rotation</code> es el vector <span class="math inline">\(a_k\)</span> de una componente, y la proyección se
+calcula como <span class="math display">\[ Z_k = a_{1k} X_1^{*} + a_{2k}
+X_2^{*} + \cdots + a_{pk} X_p^{*} \]</span> donde <span class="math inline">\(X_i^{*}\)</span> son las variables estandarizadas
+y <span class="math inline">\(a_{ik}\)</span> (la carga de <span class="math inline">\(X_i\)</span> en la componente <span class="math inline">\(k\)</span>) es el peso de esa variable original
 dentro de la componente. Se interpreta mirando qué variables tienen
 carga alta en valor absoluto y con qué signo: <strong>mismo
 signo</strong> → esas variables se mueven juntas en ese eje;
@@ -3449,8 +3516,8 @@ desconectado de la calidad sensorial.</li>
 <blockquote>
 <p><strong>Teoría — scores.</strong> Son las coordenadas de cada lote en
 la nueva base de componentes: el mismo dato, visto desde otros ejes.
-<span class="math display">\[ \text{pca\$x} = X^{*} \, \Gamma \]</span>
-Como <span class="math inline">\(\Gamma\)</span> es ortogonal, <span class="math inline">\(\operatorname{Cov}(Z_i, Z_j) = 0\)</span> para
+<span class="math display">\[ \text{pca\$x} = X^{*} \, A \]</span> Como
+<span class="math inline">\(A\)</span> es ortogonal (<span class="math inline">\(A^\top A = I\)</span>), <span class="math inline">\(\operatorname{Cov}(Z_i, Z_j) = 0\)</span> para
 <span class="math inline">\(i \neq j\)</span>: en la matriz de
 dispersión de abajo <strong>no debe verse correlación lineal</strong> en
 ningún panel. Lo que se busca ahí es otra cosa — agrupamientos, patrones
@@ -3516,6 +3583,49 @@ multivariados genuinos y no artefactos de una sola proyección — y
 refuerzan que el “tratamiento de datos” de la sección 2 podría
 profundizarse filtrando también estos casos evidentes de error de
 captura.</p>
+<blockquote>
+<p><strong>Teoría — distancia de Mahalanobis como prueba formal de
+atípicos.</strong> En vez de detectar atípicos “a ojo” en la matriz de
+dispersión, se puede formalizar como una prueba de hipótesis: <span class="math inline">\(H_0\)</span>: la observación <span class="math inline">\(x_i\)</span> pertenece a la población; <span class="math inline">\(H_a\)</span>: es atípica. El estadístico es <span class="math display">\[ d_M^2(x_i) = (x_i - \bar{x})^\top S^{-1} (x_i -
+\bar{x}) \;\sim\; \chi^2_p \]</span> (aproximadamente, bajo normalidad
+multivariada), donde <span class="math inline">\(p\)</span> es el número
+de variables. Se rechaza <span class="math inline">\(H_0\)</span> (se
+marca como atípica) si <span class="math inline">\(d_M^2(x_i)\)</span>
+supera el cuantil <span class="math inline">\(\chi^2_{p}\)</span>
+elegido como umbral.</p>
+</blockquote>
+<pre class="r"><code>dm2 &lt;- mahalanobis(datos, colMeans(datos), S)
+umbral &lt;- qchisq(0.975, df = ncol(datos))   # cuantil chi-cuadrado al 97.5%
+sum(dm2 &gt; umbral)                            # observaciones marcadas como atípicas</code></pre>
+<pre><code>## [1] 89</code></pre>
+<pre class="r"><code>sort(dm2, decreasing = TRUE)[1:6]            # las 6 distancias mas extremas</code></pre>
+<pre><code>## [1] 652.8181 410.0515 328.5998 295.8673 252.4402 186.7488</code></pre>
+<p>Con el umbral <span class="math inline">\(\chi^2_{14}\)</span> al
+97.5% (<strong>≈ 26.1</strong>), <strong>89 de los 1070 lotes</strong>
+(8.3%) quedan marcados como atípicos multivariados — muy por encima del
+2.5% esperado bajo normalidad multivariada, lo que sugiere que esa
+suposición no se sostiene bien aquí (variables acotadas como los
+puntajes 0–10 o los conteos de defectos no son verdaderamente normales).
+Aun así, la prueba <strong>confirma</strong> los mismos casos ya
+detectados visualmente: el lote con todos los puntajes en cero (<span class="math inline">\(d_M^2 \approx 653\)</span>, el más extremo de
+todos) y el lote con 31/47 defectos (<span class="math inline">\(d_M^2
+\approx 296\)</span>) están entre los primeros lugares, junto con otros
+casos no tan evidentes en la matriz de dispersión (p. ej. un lote con
+<code>Clean.Cup = 0</code> y 20 defectos secundarios).</p>
+<blockquote>
+<p><strong>Nota — relación entre Mahalanobis y las componentes.</strong>
+Usando <span class="math inline">\(S = A\Lambda A^\top\)</span>, la
+distancia de Mahalanobis se puede reescribir en términos de las
+coordenadas <span class="math inline">\(Z = \tilde{X}A\)</span> de la
+sección 8: <span class="math display">\[ d_M^2(x_i) = \sum_{k=1}^{p}
+\left(\frac{z_{ik}}{\sqrt{\lambda_k}}\right)^2 \]</span> Es decir,
+<strong>la distancia de Mahalanobis es exactamente la distancia euclídea
+en el espacio de PCA, una vez que cada componente se reescala dividiendo
+por su propia desviación estándar</strong> <span class="math inline">\(\sqrt{\lambda_k}\)</span> (<code>pca$sdev</code>).
+Buscar atípicos con Mahalanobis y buscarlos como puntos alejados en la
+matriz de dispersión de la sección 8 son, en el fondo, la misma idea —
+la ventaja de Mahalanobis es que da un umbral formal (<span class="math inline">\(\chi^2_p\)</span>) en vez de juzgar “a ojo”.</p>
+</blockquote>
 <hr />
 </div>
 <div id="biplot" class="section level1">
@@ -3976,6 +4086,24 @@ aquí)</td>
 </div>
 <div id="visualización-frente-a-modelamiento" class="section level1">
 <h1>15. Visualización frente a modelamiento</h1>
+<blockquote>
+<p><strong>Teoría — de dónde vienen realmente t-SNE y UMAP.</strong> El
+escalamiento multidimensional (MDS) clásico busca coordenadas <span class="math inline">\(Y\)</span> de baja dimensión cuya matriz de
+productos internos <span class="math inline">\(YY^\top\)</span>
+reproduzca una matriz de distancias <span class="math inline">\(D\)</span> dada entre las observaciones. Cuando
+esas distancias son euclídeas sobre los datos centrados <span class="math inline">\(\tilde{X}\)</span>, la solución de MDS coincide
+<strong>exactamente</strong> con las componentes principales: <span class="math inline">\(Y = Z = \tilde{X}A\)</span>. Es decir, <strong>PCA
+es un caso particular de MDS</strong>, el que preserva las distancias
+euclídeas globales entre observaciones. t-SNE y UMAP resuelven el mismo
+problema de fondo — hallar coordenadas de baja dimensión — pero cambian
+<strong>qué se preserva</strong>: en vez de la distancia global, buscan
+preservar las probabilidades o pesos de vecindad local entre puntos
+(secciones 12 y 13). Vistas así, las cuatro técnicas del taller no son
+herramientas independientes sino una misma familia de problemas de
+“representar bien los datos en pocas dimensiones”, que solo difieren en
+qué noción de similitud entre observaciones intentan conservar — justo
+la pregunta central del taller (sección 1).</p>
+</blockquote>
 <p>Estos métodos no son intercambiables según el objetivo:</p>
 <ul>
 <li><strong>Reducción dimensional para análisis / generación de

@@ -20,6 +20,18 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
 
 > **Nota para el lector:** este documento es un **informe de previsualización**, pensado para revisar con el profesor antes de construir las diapositivas finales. Contiene todo el código, las salidas reales obtenidas al ejecutarlo, y una interpretación preliminar de cada resultado. Las secciones siguen el orden del taller.
 
+> **Notación del curso (primer tercio de la materia).** Los bloques de teoría de este informe usan la misma notación vista en clase:
+>
+> - $X$: matriz de datos $n \times p$ ($n$ individuos, $p$ variables); $\bar{x}$: vector de medias $p \times 1$, $\bar{x} = \frac{1}{n}X^\top \mathbf{1}$.
+> - $P = I_n - \frac{1}{n}\mathbf{1}\mathbf{1}^\top$: matriz de centrado (simétrica e idempotente); $\tilde{X} = PX$ es la matriz centrada (a cada dato se le resta la media de su columna).
+> - $S = \frac{1}{n}\tilde{X}^\top\tilde{X} = \frac{1}{n}X^\top P X$: matriz de covarianza $p \times p$.
+> - $D = \operatorname{diag}(s_1^2,\dots,s_p^2)$: varianzas de cada variable; $R = D^{-1/2} S D^{-1/2}$: matriz de correlación — el resultado de estandarizar cada variable antes de calcular $S$.
+> - $a$ (o $\omega$): vector de dirección/combinación lineal — "cuánto pesa cada variable"; $\lambda$: valor propio de $S$ (o de $R$) — la varianza en la dirección de su vector propio.
+> - $A$: matriz de vectores propios (columnas = direcciones $a$); $\Lambda$: matriz diagonal de valores propios, tal que $S = A\Lambda A^\top$.
+> - $Z = Xa$: componente/proyección — los datos vistos desde la dirección $a$.
+>
+> En R: `pca$rotation` es $A$ (los vectores propios) y `pca$x` es $Z$ (las proyecciones).
+
 ---
 
 # 1. Objetivo
@@ -84,8 +96,7 @@ Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin dato
 str(datos)              # estructura interna: qué tipo de dato es cada variable
 dim(datos)                # dimensiones n x p de la matriz
 head(datos)                # primeras filas, para ver el formato de un registro real
-summary(datos)               # estadísticos de localización y dispersión UNIVARIADOS,
-                              # columna por columna: todavía no hay nada multivariado aquí
+summary(datos)               # estadísticos univariados, columna por columna
 colSums(is.na(datos))          # conteo de datos faltantes por variable
 ```
 
@@ -111,7 +122,9 @@ cor(datos)   # matriz R (p x p)
 
 # 4. Matriz de varianzas-covarianzas y medidas de variabilidad
 
-> **Teoría — matriz $S$.** $S$ es una matriz $p \times p$ y simétrica que resume cómo varía cada variable y cómo varían juntas dos variables:
+> **Teoría — matriz $S$.** Se construye centrando primero los datos: con $\tilde{X} = PX$ (la matriz centrada, usando la matriz de centrado $P$ de la nota de notación),
+> $$ S = \frac{1}{n}\tilde{X}^\top\tilde{X} = \frac{1}{n}X^\top P X $$
+> es una matriz $p \times p$ y simétrica:
 > $$ S = \begin{pmatrix} s_{11} & s_{12} & \cdots & s_{1p} \\ s_{21} & s_{22} & \cdots & s_{2p} \\ \vdots & \vdots & \ddots & \vdots \\ s_{p1} & s_{p2} & \cdots & s_{pp} \end{pmatrix} $$
 > **En la diagonal**, $s_{ii} = \operatorname{Var}(X_i)$: la varianza de cada variable por sí sola. **Fuera de la diagonal**, $s_{ij} = \operatorname{Cov}(X_i, X_j)$: mide cómo varían juntas dos variables — positiva si suben juntas, negativa si una sube cuando la otra baja. A diferencia de $R$, **$S$ sí depende de las unidades de medida** — por eso, en nuestros datos, la altitud (en metros) la domina por completo.
 
@@ -135,16 +148,16 @@ La varianza total (**≈ 174 690**) está dominada casi por completo por `altitu
 
 ## 4.2. Varianza generalizada
 
-> **Teoría — varianza generalizada.** Es el determinante de $S$:
-> $$ \text{Var. generalizada} \;=\; |S| \;=\; \det(S) $$
-> Sí recoge la variabilidad **conjunta**: es proporcional al volumen del elipsoide de dispersión que forman los datos. Si dos variables son casi linealmente dependientes, ese elipsoide se aplasta contra un plano y $|S| \to 0$.
+> **Teoría — varianza generalizada.** Es el determinante de $S$, y equivale al producto de sus valores propios:
+> $$ \text{Var. generalizada} \;=\; |S| \;=\; \det(S) \;=\; \prod_{i=1}^{p} \lambda_i $$
+> Es proporcional al volumen del elipsoide de dispersión que forman los datos (sus semiejes son proporcionales a $\sqrt{\lambda_i}$). Como todos los $\lambda_i \geq 0$ (S es semidefinida positiva), basta con que **uno solo** sea cercano a cero para que el producto colapse: $\lambda_i = 0$ exacto significa colinealidad **exacta** entre variables (rango$(S) < p$, $S$ no invertible); $\lambda_i \approx 0$ señala colinealidad **casi** exacta. La razón $\lambda_{\min}/\lambda_{\max}$ resume la anisotropía: cercana a 0, datos muy alargados en una dirección (colinealidad); cercana a 1, dispersión similar en todas direcciones.
 
 ```{r var-generalizada}
 varianza_generalizada <- det(S)
 varianza_generalizada
 ```
 
-El determinante de `S` es **≈ 2.88 × 10⁻⁷**, un número extremadamente pequeño. Esto **no** indica multicolinealidad extrema en términos relativos: es otro artefacto de escala, porque el determinante es un producto de varianzas y covarianzas en unidades muy distintas (metros² frente a escalas 0–10²), lo que aplasta el valor. Por eso la comparación cruda entre varianza total y generalizada no es directamente interpretable aquí sin normalizar.
+El determinante de `S` es **≈ 2.88 × 10⁻⁷**, un número extremadamente pequeño. Aquí, sin embargo, esto **no** es evidencia de colinealidad real: es un artefacto de escala, porque $S$ se calculó sobre las variables en su escala original y el determinante es un producto de varianzas y covarianzas en unidades muy distintas (metros² frente a escalas 0–10²), lo que aplasta el valor. Para diagnosticar colinealidad genuina hay que mirar los valores propios de $R$ en vez de los de $S$ (sección 6, ya sobre variables estandarizadas): el mayor es $\lambda_1 \approx 6.68$ y el menor $\lambda_{14} \approx 0.092$, es decir $\lambda_{\min}/\lambda_{\max} \approx 0.014$ — bastante alejado de 0 exacto. Hay colinealidad **moderada** entre los puntajes sensoriales (coherente con sus correlaciones altas), pero no una dependencia lineal exacta.
 
 > **Teoría — versiones promedio.** Con $p$ el número de variables:
 > $$ \overline{\text{Var. total}} = \frac{\operatorname{tr}(S)}{p}, \qquad \overline{\text{Var. generalizada}} = |S|^{1/p} $$
@@ -166,9 +179,15 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 
 **Decisión: ESTANDARIZAR.** Las variables tienen unidades y escalas muy distintas (metros vs. puntaje 0–10 vs. porcentaje vs. conteo de defectos). Sin estandarizar, `altitude_mean_meters` dominaría por completo la varianza total y, por tanto, el primer componente, ocultando la estructura de los puntajes sensoriales que es el objeto real de interés del análisis.
 
-> **Teoría — PCA como descomposición espectral.** PCA diagonaliza la matriz de correlaciones $R$:
-> $$ R = \Gamma \Lambda \Gamma^{\top}, \qquad \Lambda = \operatorname{diag}(\lambda_1, \dots, \lambda_p) $$
-> Las columnas de $\Gamma$ (los **vectores propios**) son direcciones **ortogonales** tales que la primera recoge la mayor varianza posible, la segunda la mayor varianza restante, y así sucesivamente. Cada valor propio $\lambda_i$ es la varianza que explica su componente. En `prcomp`, `center = TRUE` resta la media de cada variable y `scale. = TRUE` divide por la desviación estándar; con ambos, la función trabaja sobre $R$ en vez de sobre $S$ — justo lo que necesitamos porque las unidades aquí no son comparables.
+> **Teoría — PCA como problema de maximización (Lagrange).** Se busca la dirección $a$ (con $\lVert a \rVert = 1$) que maximiza la varianza de la proyección $Z = Xa$:
+> $$ \operatorname{Var}(Z) = a^\top S a $$
+> Maximizando sujeto a la restricción $a^\top a = 1$ mediante un multiplicador de Lagrange $\lambda$:
+> $$ M = a^\top S a - \lambda(a^\top a - 1), \qquad \frac{\partial M}{\partial a} = 2Sa - 2\lambda a = 0 \;\;\Rightarrow\;\; Sa = \lambda a $$
+> Es decir, la dirección que maximiza la varianza es un **vector propio** de $S$, y la varianza máxima alcanzada es exactamente su **valor propio**: $\operatorname{Var}(Z) = a^\top S a = a^\top(\lambda a) = \lambda \, a^\top a = \lambda$. Repitiendo el argumento, ahora exigiendo ortogonalidad con las componentes ya encontradas, se llega a la descomposición completa:
+> $$ S = A \Lambda A^{\top}, \qquad \Lambda = \operatorname{diag}(\lambda_1, \dots, \lambda_p) $$
+> con $A$ la matriz de vectores propios (direcciones ortogonales, la primera con la mayor varianza posible, la segunda con la mayor varianza restante, y así sucesivamente). Como decidimos **estandarizar**, en la práctica no se diagonaliza $S$ sino $R = D^{-1/2} S D^{-1/2}$ — la misma matemática, aplicada a las variables ya puestas en la misma escala. En `prcomp`, `center = TRUE` resta la media de cada variable y `scale. = TRUE` divide por la desviación estándar; con ambos, la función trabaja sobre $R$ en vez de sobre $S$. `pca$rotation` es $A$ y `pca$x` es $Z = X^{*}A$.
+>
+> Como $A$ es ortogonal ($A A^\top = I$), esta relación se invierte fácilmente: $X^{*} = Z A^\top$. Por eso proyectar una observación **nueva** (ya estandarizada con la misma media y desviación de `datos`) es tan simple como multiplicarla por $A$, y por eso PCA sí permite reconstruir (o aproximar, reteniendo solo $k<p$ columnas de $A$) los datos originales a partir de las componentes — algo que t-SNE y UMAP no ofrecen (sección 14).
 
 ```{r pca}
 # center = TRUE  -> resta la media de cada variable
@@ -209,9 +228,9 @@ Justificación:
 
 # 7. Interpretación de las componentes
 
-> **Teoría — cargas (loadings).** Son los vectores propios de $R$: cada columna de `pca$rotation` es una componente, calculada como
-> $$ Z_k = \gamma_{1k} X_1^{*} + \gamma_{2k} X_2^{*} + \cdots + \gamma_{pk} X_p^{*} $$
-> donde $X_i^{*}$ son las variables estandarizadas y $\gamma_{ik}$ (la carga de $X_i$ en la componente $k$) es el peso de esa variable original dentro de la componente. Se interpreta mirando qué variables tienen carga alta en valor absoluto y con qué signo: **mismo signo** → esas variables se mueven juntas en ese eje; **signo opuesto** → se oponen. El signo global de una componente es arbitrario — lo que importa son los contrastes.
+> **Teoría — cargas (loadings).** Son los vectores propios de $R$ (la matriz $A$ de la sección anterior): cada columna de `pca$rotation` es el vector $a_k$ de una componente, y la proyección se calcula como
+> $$ Z_k = a_{1k} X_1^{*} + a_{2k} X_2^{*} + \cdots + a_{pk} X_p^{*} $$
+> donde $X_i^{*}$ son las variables estandarizadas y $a_{ik}$ (la carga de $X_i$ en la componente $k$) es el peso de esa variable original dentro de la componente. Se interpreta mirando qué variables tienen carga alta en valor absoluto y con qué signo: **mismo signo** → esas variables se mueven juntas en ese eje; **signo opuesto** → se oponen. El signo global de una componente es arbitrario — lo que importa son los contrastes.
 
 ```{r cargas}
 round(pca$rotation[, 1:4], 3)
@@ -227,8 +246,8 @@ round(pca$rotation[, 1:4], 3)
 # 8. Matriz de gráficos de dispersión de las componentes
 
 > **Teoría — scores.** Son las coordenadas de cada lote en la nueva base de componentes: el mismo dato, visto desde otros ejes.
-> $$ \text{pca\$x} = X^{*} \, \Gamma $$
-> Como $\Gamma$ es ortogonal, $\operatorname{Cov}(Z_i, Z_j) = 0$ para $i \neq j$: en la matriz de dispersión de abajo **no debe verse correlación lineal** en ningún panel. Lo que se busca ahí es otra cosa — agrupamientos, patrones y observaciones atípicas.
+> $$ \text{pca\$x} = X^{*} \, A $$
+> Como $A$ es ortogonal ($A^\top A = I$), $\operatorname{Cov}(Z_i, Z_j) = 0$ para $i \neq j$: en la matriz de dispersión de abajo **no debe verse correlación lineal** en ningún panel. Lo que se busca ahí es otra cosa — agrupamientos, patrones y observaciones atípicas.
 
 ```{r coordenadas}
 head(pca$x)
@@ -257,6 +276,23 @@ datos[unique(c(idx_pc1, idx_pc2, idx_pc4)), ]
 - Lotes con **altitud = 1 metro**: claramente un valor de captura erróneo o un placeholder (ninguna finca de café real está a 1 msnm), visibles como atípicos en PC4.
 
 Estos patrones se mantienen entre distintos pares de componentes que involucran a PC1, PC2 o PC4, lo que confirma que son atípicos multivariados genuinos y no artefactos de una sola proyección — y refuerzan que el "tratamiento de datos" de la sección 2 podría profundizarse filtrando también estos casos evidentes de error de captura.
+
+> **Teoría — distancia de Mahalanobis como prueba formal de atípicos.** En vez de detectar atípicos "a ojo" en la matriz de dispersión, se puede formalizar como una prueba de hipótesis: $H_0$: la observación $x_i$ pertenece a la población; $H_a$: es atípica. El estadístico es
+> $$ d_M^2(x_i) = (x_i - \bar{x})^\top S^{-1} (x_i - \bar{x}) \;\sim\; \chi^2_p $$
+> (aproximadamente, bajo normalidad multivariada), donde $p$ es el número de variables. Se rechaza $H_0$ (se marca como atípica) si $d_M^2(x_i)$ supera el cuantil $\chi^2_{p}$ elegido como umbral.
+
+```{r mahalanobis}
+dm2 <- mahalanobis(datos, colMeans(datos), S)
+umbral <- qchisq(0.975, df = ncol(datos))   # cuantil chi-cuadrado al 97.5%
+sum(dm2 > umbral)                            # observaciones marcadas como atípicas
+sort(dm2, decreasing = TRUE)[1:6]            # las 6 distancias mas extremas
+```
+
+Con el umbral $\chi^2_{14}$ al 97.5% (**≈ 26.1**), **89 de los 1070 lotes** (8.3%) quedan marcados como atípicos multivariados — muy por encima del 2.5% esperado bajo normalidad multivariada, lo que sugiere que esa suposición no se sostiene bien aquí (variables acotadas como los puntajes 0–10 o los conteos de defectos no son verdaderamente normales). Aun así, la prueba **confirma** los mismos casos ya detectados visualmente: el lote con todos los puntajes en cero ($d_M^2 \approx 653$, el más extremo de todos) y el lote con 31/47 defectos ($d_M^2 \approx 296$) están entre los primeros lugares, junto con otros casos no tan evidentes en la matriz de dispersión (p. ej. un lote con `Clean.Cup = 0` y 20 defectos secundarios).
+
+> **Nota — relación entre Mahalanobis y las componentes.** Usando $S = A\Lambda A^\top$, la distancia de Mahalanobis se puede reescribir en términos de las coordenadas $Z = \tilde{X}A$ de la sección 8:
+> $$ d_M^2(x_i) = \sum_{k=1}^{p} \left(\frac{z_{ik}}{\sqrt{\lambda_k}}\right)^2 $$
+> Es decir, **la distancia de Mahalanobis es exactamente la distancia euclídea en el espacio de PCA, una vez que cada componente se reescala dividiendo por su propia desviación estándar** $\sqrt{\lambda_k}$ (`pca$sdev`). Buscar atípicos con Mahalanobis y buscarlos como puntos alejados en la matriz de dispersión de la sección 8 son, en el fondo, la misma idea — la ventaja de Mahalanobis es que da un umbral formal ($\chi^2_p$) en vez de juzgar "a ojo".
 
 ---
 
@@ -481,6 +517,8 @@ Con `n_neighbors = 5` (vecindarios más pequeños) el grupo con `Moisture = 0` *
 ---
 
 # 15. Visualización frente a modelamiento
+
+> **Teoría — de dónde vienen realmente t-SNE y UMAP.** El escalamiento multidimensional (MDS) clásico busca coordenadas $Y$ de baja dimensión cuya matriz de productos internos $YY^\top$ reproduzca una matriz de distancias $D$ dada entre las observaciones. Cuando esas distancias son euclídeas sobre los datos centrados $\tilde{X}$, la solución de MDS coincide **exactamente** con las componentes principales: $Y = Z = \tilde{X}A$. Es decir, **PCA es un caso particular de MDS**, el que preserva las distancias euclídeas globales entre observaciones. t-SNE y UMAP resuelven el mismo problema de fondo — hallar coordenadas de baja dimensión — pero cambian **qué se preserva**: en vez de la distancia global, buscan preservar las probabilidades o pesos de vecindad local entre puntos (secciones 12 y 13). Vistas así, las cuatro técnicas del taller no son herramientas independientes sino una misma familia de problemas de "representar bien los datos en pocas dimensiones", que solo difieren en qué noción de similitud entre observaciones intentan conservar — justo la pregunta central del taller (sección 1).
 
 Estos métodos no son intercambiables según el objetivo:
 

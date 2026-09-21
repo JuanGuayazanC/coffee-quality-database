@@ -2859,7 +2859,7 @@ border-radius: 0px;
 <h3 class="subtitle">PCA y métodos alternativos de reducción de
 dimensionalidad — Coffee Quality Institute</h3>
 <h4 class="author">Juan Sebastian</h4>
-<h4 class="date">18 de septiembre de 2026</h4>
+<h4 class="date">20 de septiembre de 2026</h4>
 
 </div>
 
@@ -2977,10 +2977,7 @@ colSums(is.na(data[, vars_cuantitativas]))</code></pre>
   filter(is.na(altitude_mean_meters) | (altitude_mean_meters &gt; 0 &amp; altitude_mean_meters &lt;= 3000)) %&gt;%
   filter(!is.na(altitude_mean_meters))
 
-datos &lt;- data_f %&gt;% select(all_of(vars_cuantitativas))
-
-dim(datos)</code></pre>
-<pre><code>## [1] 1070   14</code></pre>
+datos &lt;- data_f %&gt;% select(all_of(vars_cuantitativas))</code></pre>
 <p>Tras el tratamiento quedan <strong>1070 observaciones</strong> con
 <strong>14 variables</strong>, sin datos faltantes.</p>
 <hr />
@@ -3003,6 +3000,8 @@ dim(datos)</code></pre>
 ##  $ Category.One.Defects: int  0 0 0 0 0 0 0 0 0 0 ...
 ##  $ Category.Two.Defects: int  0 1 0 2 2 0 0 4 1 0 ...
 ##  $ altitude_mean_meters: num  2075 2075 1700 2000 2075 ...</code></pre>
+<pre class="r"><code>dim(datos)</code></pre>
+<pre><code>## [1] 1070   14</code></pre>
 <pre class="r"><code>head(datos)</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
@@ -3049,6 +3048,7 @@ dim(datos)</code></pre>
 ##                    0                    0                    0 
 ## Category.Two.Defects altitude_mean_meters 
 ##                    0                    0</code></pre>
+<p>Examine también las relaciones entre las variables:</p>
 <pre class="r"><code>cor(datos)</code></pre>
 <pre><code>##                            Aroma      Flavor  Aftertaste    Acidity        Body
 ## Aroma                 1.00000000  0.83243132  0.79035860  0.7509512  0.73430681
@@ -3138,67 +3138,67 @@ sabor).</li>
 <div id="matriz-de-varianzas-covarianzas-y-medidas-de-variabilidad" class="section level1">
 <h1>4. Matriz de varianzas-covarianzas y medidas de variabilidad</h1>
 <pre class="r"><code>S &lt;- cov(datos)
-round(S, 3)</code></pre>
-<pre><code>##                       Aroma Flavor Aftertaste Acidity   Body Balance Uniformity
-## Aroma                 0.149  0.130      0.125   0.112  0.103   0.119      0.087
-## Flavor                0.130  0.164      0.148   0.132  0.117   0.138      0.099
-## Aftertaste            0.125  0.148      0.167   0.127  0.118   0.141      0.101
-## Acidity               0.112  0.132      0.127   0.150  0.108   0.122      0.093
-## Body                  0.103  0.117      0.118   0.108  0.131   0.121      0.084
-## Balance               0.119  0.138      0.141   0.122  0.121   0.174      0.102
-## Uniformity            0.087  0.099      0.101   0.093  0.084   0.102      0.280
-## Clean.Cup             0.116  0.143      0.145   0.108  0.099   0.138      0.209
-## Sweetness             0.081  0.092      0.092   0.082  0.078   0.090      0.156
-## Cupper.Points         0.132  0.158      0.158   0.135  0.126   0.154      0.103
-## Moisture             -0.002 -0.002     -0.003  -0.002 -0.003  -0.004      0.000
-## Category.One.Defects -0.058 -0.038     -0.060  -0.045 -0.016  -0.047     -0.108
-## Category.Two.Defects -0.291 -0.392     -0.447  -0.259 -0.207  -0.382     -0.218
-## altitude_mean_meters 27.221 26.466     26.272  32.355 18.316  28.238      9.139
-##                      Clean.Cup Sweetness Cupper.Points Moisture
-## Aroma                    0.116     0.081         0.132   -0.002
-## Flavor                   0.143     0.092         0.158   -0.002
-## Aftertaste               0.145     0.092         0.158   -0.003
-## Acidity                  0.108     0.082         0.135   -0.002
-## Body                     0.099     0.078         0.126   -0.003
-## Balance                  0.138     0.090         0.154   -0.004
-## Uniformity               0.209     0.156         0.103    0.000
-## Clean.Cup                0.634     0.224         0.154   -0.001
-## Sweetness                0.224     0.263         0.092    0.000
-## Cupper.Points            0.154     0.092         0.223   -0.004
-## Moisture                -0.001     0.000        -0.004    0.002
-## Category.One.Defects    -0.190    -0.024        -0.041    0.006
-## Category.Two.Defects    -0.899    -0.054        -0.437    0.037
-## altitude_mean_meters    15.238     2.059        29.430    0.044
+signif(S, 3)</code></pre>
+<pre><code>##                        Aroma   Flavor Aftertaste  Acidity     Body  Balance
+## Aroma                 0.1490  0.13000    0.12500  0.11200  0.10300  0.11900
+## Flavor                0.1300  0.16400    0.14800  0.13200  0.11700  0.13800
+## Aftertaste            0.1250  0.14800    0.16700  0.12700  0.11800  0.14100
+## Acidity               0.1120  0.13200    0.12700  0.15000  0.10800  0.12200
+## Body                  0.1030  0.11700    0.11800  0.10800  0.13100  0.12100
+## Balance               0.1190  0.13800    0.14100  0.12200  0.12100  0.17400
+## Uniformity            0.0870  0.09900    0.10100  0.09290  0.08400  0.10200
+## Clean.Cup             0.1160  0.14300    0.14500  0.10800  0.09910  0.13800
+## Sweetness             0.0806  0.09210    0.09190  0.08150  0.07770  0.08960
+## Cupper.Points         0.1320  0.15800    0.15800  0.13500  0.12600  0.15400
+## Moisture             -0.0018 -0.00237   -0.00304 -0.00192 -0.00301 -0.00403
+## Category.One.Defects -0.0576 -0.03840   -0.05970 -0.04510 -0.01630 -0.04680
+## Category.Two.Defects -0.2910 -0.39200   -0.44700 -0.25900 -0.20700 -0.38200
+## altitude_mean_meters 27.2000 26.50000   26.30000 32.40000 18.30000 28.20000
+##                      Uniformity Clean.Cup Sweetness Cupper.Points  Moisture
+## Aroma                  0.087000    0.1160  0.080600       0.13200 -0.001800
+## Flavor                 0.099000    0.1430  0.092100       0.15800 -0.002370
+## Aftertaste             0.101000    0.1450  0.091900       0.15800 -0.003040
+## Acidity                0.092900    0.1080  0.081500       0.13500 -0.001920
+## Body                   0.084000    0.0991  0.077700       0.12600 -0.003010
+## Balance                0.102000    0.1380  0.089600       0.15400 -0.004030
+## Uniformity             0.280000    0.2090  0.156000       0.10300 -0.000418
+## Clean.Cup              0.209000    0.6340  0.224000       0.15400 -0.001400
+## Sweetness              0.156000    0.2240  0.263000       0.09220  0.000306
+## Cupper.Points          0.103000    0.1540  0.092200       0.22300 -0.003880
+## Moisture              -0.000418   -0.0014  0.000306      -0.00388  0.002010
+## Category.One.Defects  -0.108000   -0.1900 -0.024300      -0.04080  0.005830
+## Category.Two.Defects  -0.218000   -0.8990 -0.054000      -0.43700  0.036600
+## altitude_mean_meters   9.140000   15.2000  2.060000      29.40000  0.043800
 ##                      Category.One.Defects Category.Two.Defects
-## Aroma                              -0.058               -0.291
-## Flavor                             -0.038               -0.392
-## Aftertaste                         -0.060               -0.447
-## Acidity                            -0.045               -0.259
-## Body                               -0.016               -0.207
-## Balance                            -0.047               -0.382
-## Uniformity                         -0.108               -0.218
-## Clean.Cup                          -0.190               -0.899
-## Sweetness                          -0.024               -0.054
-## Cupper.Points                      -0.041               -0.437
-## Moisture                            0.006                0.037
-## Category.One.Defects                3.522                3.615
-## Category.Two.Defects                3.615               27.901
-## altitude_mean_meters              -58.891              -23.189
+## Aroma                            -0.05760              -0.2910
+## Flavor                           -0.03840              -0.3920
+## Aftertaste                       -0.05970              -0.4470
+## Acidity                          -0.04510              -0.2590
+## Body                             -0.01630              -0.2070
+## Balance                          -0.04680              -0.3820
+## Uniformity                       -0.10800              -0.2180
+## Clean.Cup                        -0.19000              -0.8990
+## Sweetness                        -0.02430              -0.0540
+## Cupper.Points                    -0.04080              -0.4370
+## Moisture                          0.00583               0.0366
+## Category.One.Defects              3.52000               3.6100
+## Category.Two.Defects              3.61000              27.9000
+## altitude_mean_meters            -58.90000             -23.2000
 ##                      altitude_mean_meters
-## Aroma                              27.221
-## Flavor                             26.466
-## Aftertaste                         26.272
-## Acidity                            32.355
-## Body                               18.316
-## Balance                            28.238
-## Uniformity                          9.139
-## Clean.Cup                          15.238
-## Sweetness                           2.059
-## Cupper.Points                      29.430
-## Moisture                            0.044
-## Category.One.Defects              -58.891
-## Category.Two.Defects              -23.189
-## altitude_mean_meters           174656.107</code></pre>
+## Aroma                            2.72e+01
+## Flavor                           2.65e+01
+## Aftertaste                       2.63e+01
+## Acidity                          3.24e+01
+## Body                             1.83e+01
+## Balance                          2.82e+01
+## Uniformity                       9.14e+00
+## Clean.Cup                        1.52e+01
+## Sweetness                        2.06e+00
+## Cupper.Points                    2.94e+01
+## Moisture                         4.38e-02
+## Category.One.Defects            -5.89e+01
+## Category.Two.Defects            -2.32e+01
+## altitude_mean_meters             1.75e+05</code></pre>
 <div id="varianza-total" class="section level2">
 <h2>4.1. Varianza total</h2>
 <pre class="r"><code>varianza_total &lt;- sum(diag(S))
@@ -3344,6 +3344,28 @@ desconectado de la calidad sensorial.</li>
 </div>
 <div id="matriz-de-gráficos-de-dispersión-de-las-componentes" class="section level1">
 <h1>8. Matriz de gráficos de dispersión de las componentes</h1>
+<pre class="r"><code>head(pca$x)</code></pre>
+<pre><code>##            PC1        PC2      PC3        PC4        PC5           PC6
+## [1,] -7.180141 -0.5385088 2.344345  1.7354304  1.2078351 -0.2480335355
+## [2,] -6.597282 -0.5827891 2.139270  1.7587152  1.0288087 -0.1399820595
+## [3,] -6.486716  0.3154471 2.782073 -0.5358591 -0.4714809 -0.0002088318
+## [4,] -5.791649 -0.5418410 1.914293  1.3890949  0.6619566 -0.0854817387
+## [5,] -5.634538 -0.5868042 1.833174  1.6995424  0.6843102 -0.0967206188
+## [6,] -5.798372  0.3005229 3.095794 -0.2681066  0.2220363 -0.0778615615
+##              PC7          PC8        PC9        PC10        PC11      PC12
+## [1,] -0.04809022  0.136499783 -0.2046303  0.00733711 -0.37290051 0.2275244
+## [2,] -0.09100424  0.138752396 -0.4495904 -0.11780231  0.07606555 0.1489783
+## [3,] -0.23894246 -0.073058203  0.3190942  1.06582399 -0.13882960 0.5805263
+## [4,] -0.10545755  0.008597982  0.7049076 -0.03457453 -0.34366439 0.5850076
+## [5,] -0.04200121  0.041799356  0.5080311 -0.17333492 -0.34161207 0.3446383
+## [6,] -0.16031521 -1.075705794  0.6146915  0.43519915 -0.18951099 0.2422122
+##             PC13        PC14
+## [1,]  0.38909859 -0.02355295
+## [2,]  0.13742465  0.02431072
+## [3,] -0.23475887  0.12569057
+## [4,]  0.50559342 -0.19033730
+## [5,]  0.00491501 -0.18513217
+## [6,] -0.04045537  0.47372546</code></pre>
 <pre class="r"><code>k &lt;- 4
 pairs(pca$x[, 1:k],
       main = &quot;Matriz de dispersión - Componentes principales (café)&quot;,
@@ -3577,8 +3599,15 @@ X &lt;- scale(datos)
 
 set.seed(123)
 um &lt;- umap(X)
-
-plot(um[, 1], um[, 2],
+head(um)</code></pre>
+<pre><code>##           [,1]       [,2]
+## [1,] 5.2384374   2.377786
+## [2,] 5.2016653   2.398821
+## [3,] 0.1302901 -11.038059
+## [4,] 5.2346020   2.372133
+## [5,] 5.1861037   2.409271
+## [6,] 0.1787904 -10.999933</code></pre>
+<pre class="r"><code>plot(um[, 1], um[, 2],
      pch = 19, col = adjustcolor(&quot;mediumpurple&quot;, alpha.f = 0.5),
      xlab = &quot;UMAP1&quot;, ylab = &quot;UMAP2&quot;,
      main = &quot;UMAP - Café (parámetros por defecto)&quot;)</code></pre>

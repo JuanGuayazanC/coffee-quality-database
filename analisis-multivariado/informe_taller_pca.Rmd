@@ -78,14 +78,15 @@ Tras el tratamiento quedan **1070 observaciones** con **14 variables**, sin dato
 
 # 3. Exploración inicial
 
-> **Teoría — la matriz de datos.** Todo el análisis multivariado parte de una matriz $X_{n \times p}$, con $n = 1070$ filas (lotes) y $p = 14$ columnas (variables). Antes de cualquier análisis conviene revisarla función por función: `str()` da la estructura interna (qué tipo de dato es cada variable); `dim()` da las dimensiones $n \times p$; `head()` muestra las primeras filas, para ver el formato de un registro real; `summary()` da los estadísticos de localización y dispersión **univariados**, variable por variable — todavía no hay nada "multivariado" en este paso, cada columna se mira por separado; y `colSums(is.na(datos))` cuenta los datos faltantes por variable.
+> **Teoría — la matriz de datos.** Todo el análisis multivariado parte de una matriz $X_{n \times p}$, con $n = 1070$ filas (lotes) y $p = 14$ columnas (variables).
 
 ```{r exploracion}
-str(datos)
-dim(datos)
-head(datos)
-summary(datos)
-colSums(is.na(datos))
+str(datos)              # estructura interna: qué tipo de dato es cada variable
+dim(datos)                # dimensiones n x p de la matriz
+head(datos)                # primeras filas, para ver el formato de un registro real
+summary(datos)               # estadísticos de localización y dispersión UNIVARIADOS,
+                              # columna por columna: todavía no hay nada multivariado aquí
+colSums(is.na(datos))          # conteo de datos faltantes por variable
 ```
 
 Examine también las relaciones entre las variables:
@@ -95,7 +96,7 @@ Examine también las relaciones entre las variables:
 > Cada $R_{ij}$ mide la asociación **lineal** entre las variables $i$ y $j$, sin unidades. A diferencia de $S$ (sección 4), $R$ **no cambia** si se reescalan las variables.
 
 ```{r correlacion}
-cor(datos)
+cor(datos)   # matriz R (p x p)
 ```
 
 **Hallazgos principales:**
@@ -170,6 +171,9 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 > Las columnas de $\Gamma$ (los **vectores propios**) son direcciones **ortogonales** tales que la primera recoge la mayor varianza posible, la segunda la mayor varianza restante, y así sucesivamente. Cada valor propio $\lambda_i$ es la varianza que explica su componente. En `prcomp`, `center = TRUE` resta la media de cada variable y `scale. = TRUE` divide por la desviación estándar; con ambos, la función trabaja sobre $R$ en vez de sobre $S$ — justo lo que necesitamos porque las unidades aquí no son comparables.
 
 ```{r pca}
+# center = TRUE  -> resta la media de cada variable
+# scale.  = TRUE -> divide por la desviación estándar
+# Con ambos, prcomp trabaja sobre R (correlaciones) en vez de sobre S (covarianzas).
 pca <- prcomp(datos, center = TRUE, scale. = TRUE)
 ```
 
@@ -182,8 +186,8 @@ pca <- prcomp(datos, center = TRUE, scale. = TRUE)
 > La suma da exactamente $p = 14$ porque cada variable estandarizada aporta varianza 1. De ahí el **criterio de Kaiser**: retener las componentes con $\lambda_i > 1$, es decir, las que explican más varianza que una sola variable original.
 
 ```{r resumen-pca}
-summary(pca)
-pca$sdev^2
+summary(pca)   # sdev, proporción de varianza explicada y acumulada por componente
+pca$sdev^2     # los valores propios lambda_i
 ```
 
 > **Teoría — gráfico de codo.** Grafica los $\lambda_i$ en orden decreciente. El "codo" es el punto donde la caída se aplana: a partir de ahí, cada componente adicional aporta poca varianza nueva, y suele tomarse como punto de corte.
@@ -287,11 +291,13 @@ Lo que el biplot añade frente a la matriz de dispersión es la **dirección y m
 > $$ K_{ij} = k(x_i, x_j) $$
 > Esto equivale a hacer PCA en un espacio de dimensión mucho mayor, **sin construirlo explícitamente**. Con el kernel RBF (gaussiano):
 > $$ k(x, y) = \exp\!\big(-\sigma \, \lVert x - y \rVert^2\big) $$
-> la similitud vale 1 si los lotes son idénticos y decae con la distancia; $\sigma$ regula esa caída ($\sigma$ grande → solo los vecinos muy cercanos se parecen). Hay que estandarizar antes: el kernel usa distancias euclidianas, y sin estandarizar la altitud (en metros) dominaría por completo $\lVert x-y \rVert$. Los valores propios de $K$ son el análogo a los $\lambda_i$ del PCA lineal; su proporción cumple el mismo papel que la varianza explicada, pero calculada solo sobre las componentes retenidas (`features = 5`), no sobre todo el espacio.
+> la similitud vale 1 si los lotes son idénticos y decae con la distancia; $\sigma$ regula esa caída ($\sigma$ grande → solo los vecinos muy cercanos se parecen).
 
 ```{r kpca}
 library(kernlab)
 
+# Hay que estandarizar antes: el kernel usa distancias euclidianas, y sin
+# estandarizar la altitud (en metros) dominaría por completo ||x - y||.
 datos_esc <- as.data.frame(scale(datos))
 
 kp <- kpca(~., data = datos_esc,
@@ -299,6 +305,9 @@ kp <- kpca(~., data = datos_esc,
            kpar = list(sigma = 0.05),
            features = 5)
 
+# Valores propios de K: el análogo a los lambda del PCA lineal. Su proporción
+# cumple el mismo papel que la varianza explicada, pero calculada solo sobre
+# las componentes retenidas (features = 5), no sobre todo el espacio.
 eig <- kp@eig
 var_exp <- eig / sum(eig)
 round(var_exp, 3)
@@ -357,7 +366,7 @@ Al aumentar `sigma` a 1 (vecindades más "anchas", similitud menos local), el an
 > 3. t-SNE mueve los puntos del plano $y_i$ hasta **minimizar la divergencia de Kullback-Leibler** entre $p$ y $q$, es decir, hasta que las vecindades se parezcan lo más posible:
 >    $$ \mathrm{KL}(P \parallel Q) = \sum_{i \neq j} p_{ij}\log\frac{p_{ij}}{q_{ij}} $$
 >
-> Por eso preserva la estructura **local** y distorsiona a propósito las distancias globales. `perplexity` es el número efectivo de vecinos que se intenta preservar por punto, y `theta` es la aproximación de Barnes-Hut (0 = cálculo exacto pero mucho más lento).
+> Por eso preserva la estructura **local** y distorsiona a propósito las distancias globales.
 
 ```{r tsne}
 library(Rtsne)
@@ -365,6 +374,8 @@ library(Rtsne)
 X <- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 
 set.seed(123)       # la optimización arranca de una configuración aleatoria
+# perplexity: número efectivo de vecinos que se intenta preservar por punto.
+# theta: aproximación de Barnes-Hut (0 = cálculo exacto pero mucho más lento).
 tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
 
 plot(tsne$Y,
@@ -405,14 +416,16 @@ Con `perplexity = 5` (vecindarios mucho más pequeños) la nube se fragmenta en 
 > 2. Busca una disposición en 2D, con pesos análogos $w'_{ij}$, que minimice la **entropía cruzada difusa** entre ambos grafos:
 >    $$ C = \sum_{i,j} \left[ w_{ij} \log\frac{w_{ij}}{w'_{ij}} + (1-w_{ij}) \log\frac{1-w_{ij}}{1-w'_{ij}} \right] $$
 >
-> Al trabajar sobre un grafo global y no solo sobre pares como t-SNE, UMAP conserva mejor las distancias relativas **entre** grupos, no solo dentro de cada vecindario. `n_neighbors` (por defecto 15, análogo a $k$) controla el tamaño de ese vecindario: pequeño → estructura local; grande → estructura más global.
+> Al trabajar sobre un grafo global y no solo sobre pares como t-SNE, UMAP conserva mejor las distancias relativas **entre** grupos, no solo dentro de cada vecindario.
 
 ```{r umap}
 library(uwot)
 
-X <- scale(datos)
+X <- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 
 set.seed(123)
+# n_neighbors (por defecto 15): tamaño del vecindario. Pequeño -> estructura local;
+# grande -> estructura más global.
 um <- umap(X)
 head(um)
 

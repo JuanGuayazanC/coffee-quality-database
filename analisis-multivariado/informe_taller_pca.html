@@ -2989,17 +2989,9 @@ datos &lt;- data_f %&gt;% select(all_of(vars_cuantitativas))</code></pre>
 multivariado parte de una matriz <span class="math inline">\(X_{n \times
 p}\)</span>, con <span class="math inline">\(n = 1070\)</span> filas
 (lotes) y <span class="math inline">\(p = 14\)</span> columnas
-(variables). Antes de cualquier análisis conviene revisarla función por
-función: <code>str()</code> da la estructura interna (qué tipo de dato
-es cada variable); <code>dim()</code> da las dimensiones <span class="math inline">\(n \times p\)</span>; <code>head()</code> muestra
-las primeras filas, para ver el formato de un registro real;
-<code>summary()</code> da los estadísticos de localización y dispersión
-<strong>univariados</strong>, variable por variable — todavía no hay
-nada “multivariado” en este paso, cada columna se mira por separado; y
-<code>colSums(is.na(datos))</code> cuenta los datos faltantes por
-variable.</p>
+(variables).</p>
 </blockquote>
-<pre class="r"><code>str(datos)</code></pre>
+<pre class="r"><code>str(datos)              # estructura interna: qué tipo de dato es cada variable</code></pre>
 <pre><code>## &#39;data.frame&#39;:    1070 obs. of  14 variables:
 ##  $ Aroma               : num  8.67 8.75 8.42 8.17 8.25 8.25 8.67 8.08 8.17 8.25 ...
 ##  $ Flavor              : num  8.83 8.67 8.5 8.58 8.5 8.33 8.67 8.58 8.67 8.42 ...
@@ -3015,15 +3007,15 @@ variable.</p>
 ##  $ Category.One.Defects: int  0 0 0 0 0 0 0 0 0 0 ...
 ##  $ Category.Two.Defects: int  0 1 0 2 2 0 0 4 1 0 ...
 ##  $ altitude_mean_meters: num  2075 2075 1700 2000 2075 ...</code></pre>
-<pre class="r"><code>dim(datos)</code></pre>
+<pre class="r"><code>dim(datos)                # dimensiones n x p de la matriz</code></pre>
 <pre><code>## [1] 1070   14</code></pre>
-<pre class="r"><code>head(datos)</code></pre>
+<pre class="r"><code>head(datos)                # primeras filas, para ver el formato de un registro real</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
 {"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["Aroma"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["Flavor"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["Aftertaste"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["Acidity"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["Body"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["Balance"],"name":[6],"type":["dbl"],"align":["right"]},{"label":["Uniformity"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["Clean.Cup"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["Sweetness"],"name":[9],"type":["dbl"],"align":["right"]},{"label":["Cupper.Points"],"name":[10],"type":["dbl"],"align":["right"]},{"label":["Moisture"],"name":[11],"type":["dbl"],"align":["right"]},{"label":["Category.One.Defects"],"name":[12],"type":["int"],"align":["right"]},{"label":["Category.Two.Defects"],"name":[13],"type":["int"],"align":["right"]},{"label":["altitude_mean_meters"],"name":[14],"type":["dbl"],"align":["right"]}],"data":[{"1":"8.67","2":"8.83","3":"8.67","4":"8.75","5":"8.50","6":"8.42","7":"10","8":"10","9":"10.00","10":"8.75","11":"0.12","12":"0","13":"0","14":"2075","_rn_":"1"},{"1":"8.75","2":"8.67","3":"8.50","4":"8.58","5":"8.42","6":"8.42","7":"10","8":"10","9":"10.00","10":"8.58","11":"0.12","12":"0","13":"1","14":"2075","_rn_":"2"},{"1":"8.42","2":"8.50","3":"8.42","4":"8.42","5":"8.33","6":"8.42","7":"10","8":"10","9":"10.00","10":"9.25","11":"0.00","12":"0","13":"0","14":"1700","_rn_":"3"},{"1":"8.17","2":"8.58","3":"8.42","4":"8.42","5":"8.50","6":"8.25","7":"10","8":"10","9":"10.00","10":"8.67","11":"0.11","12":"0","13":"2","14":"2000","_rn_":"4"},{"1":"8.25","2":"8.50","3":"8.25","4":"8.50","5":"8.42","6":"8.33","7":"10","8":"10","9":"10.00","10":"8.58","11":"0.12","12":"0","13":"2","14":"2075","_rn_":"5"},{"1":"8.25","2":"8.33","3":"8.50","4":"8.42","5":"8.33","6":"8.50","7":"10","8":"10","9":"9.33","10":"9.00","11":"0.03","12":"0","13":"0","14":"1635","_rn_":"6"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
-<pre class="r"><code>summary(datos)</code></pre>
+<pre class="r"><code>summary(datos)               # estadísticos de localización y dispersión UNIVARIADOS,</code></pre>
 <pre><code>##      Aroma          Flavor        Aftertaste       Acidity           Body      
 ##  Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
 ##  1st Qu.:7.42   1st Qu.:7.330   1st Qu.:7.250   1st Qu.:7.330   1st Qu.:7.330  
@@ -3052,7 +3044,8 @@ variable.</p>
 ##  Mean   :1304        
 ##  3rd Qu.:1600        
 ##  Max.   :2560</code></pre>
-<pre class="r"><code>colSums(is.na(datos))</code></pre>
+<pre class="r"><code>                              # columna por columna: todavía no hay nada multivariado aquí
+colSums(is.na(datos))          # conteo de datos faltantes por variable</code></pre>
 <pre><code>##                Aroma               Flavor           Aftertaste 
 ##                    0                    0                    0 
 ##              Acidity                 Body              Balance 
@@ -3072,7 +3065,7 @@ R_{ij} \le 1 \]</span> Cada <span class="math inline">\(R_{ij}\)</span>
 mide la asociación <strong>lineal</strong> entre las variables <span class="math inline">\(i\)</span> y <span class="math inline">\(j\)</span>, sin unidades. A diferencia de <span class="math inline">\(S\)</span> (sección 4), <span class="math inline">\(R\)</span> <strong>no cambia</strong> si se
 reescalan las variables.</p>
 </blockquote>
-<pre class="r"><code>cor(datos)</code></pre>
+<pre class="r"><code>cor(datos)   # matriz R (p x p)</code></pre>
 <pre><code>##                            Aroma      Flavor  Aftertaste    Acidity        Body
 ## Aroma                 1.00000000  0.83243132  0.79035860  0.7509512  0.73430681
 ## Flavor                0.83243132  1.00000000  0.89691922  0.8397081  0.80018756
@@ -3326,7 +3319,10 @@ media de cada variable y <code>scale. = TRUE</code> divide por la
 desviación estándar; con ambos, la función trabaja sobre <span class="math inline">\(R\)</span> en vez de sobre <span class="math inline">\(S\)</span> — justo lo que necesitamos porque las
 unidades aquí no son comparables.</p>
 </blockquote>
-<pre class="r"><code>pca &lt;- prcomp(datos, center = TRUE, scale. = TRUE)</code></pre>
+<pre class="r"><code># center = TRUE  -&gt; resta la media de cada variable
+# scale.  = TRUE -&gt; divide por la desviación estándar
+# Con ambos, prcomp trabaja sobre R (correlaciones) en vez de sobre S (covarianzas).
+pca &lt;- prcomp(datos, center = TRUE, scale. = TRUE)</code></pre>
 <hr />
 </div>
 <div id="selección-del-número-de-componentes" class="section level1">
@@ -3343,7 +3339,7 @@ el <strong>criterio de Kaiser</strong>: retener las componentes con
 <span class="math inline">\(\lambda_i &gt; 1\)</span>, es decir, las que
 explican más varianza que una sola variable original.</p>
 </blockquote>
-<pre class="r"><code>summary(pca)</code></pre>
+<pre class="r"><code>summary(pca)   # sdev, proporción de varianza explicada y acumulada por componente</code></pre>
 <pre><code>## Importance of components:
 ##                           PC1     PC2     PC3    PC4     PC5     PC6     PC7
 ## Standard deviation     2.5840 1.18139 1.15921 1.0109 0.91404 0.80580 0.68837
@@ -3353,7 +3349,7 @@ explican más varianza que una sola variable original.</p>
 ## Standard deviation     0.6317 0.53169 0.5103 0.48796 0.42122 0.39213 0.30267
 ## Proportion of Variance 0.0285 0.02019 0.0186 0.01701 0.01267 0.01098 0.00654
 ## Cumulative Proportion  0.9140 0.93419 0.9528 0.96980 0.98247 0.99346 1.00000</code></pre>
-<pre class="r"><code>pca$sdev^2</code></pre>
+<pre class="r"><code>pca$sdev^2     # los valores propios lambda_i</code></pre>
 <pre><code>##  [1] 6.67688339 1.39567781 1.34376806 1.02201861 0.83546204 0.64931368
 ##  [7] 0.47385012 0.39905351 0.28269576 0.26037321 0.23810395 0.17742297
 ## [13] 0.15376684 0.09161005</code></pre>
@@ -3592,16 +3588,12 @@ explícitamente</strong>. Con el kernel RBF (gaussiano): <span class="math displ
 \rVert^2\big) \]</span> la similitud vale 1 si los lotes son idénticos y
 decae con la distancia; <span class="math inline">\(\sigma\)</span>
 regula esa caída (<span class="math inline">\(\sigma\)</span> grande →
-solo los vecinos muy cercanos se parecen). Hay que estandarizar antes:
-el kernel usa distancias euclidianas, y sin estandarizar la altitud (en
-metros) dominaría por completo <span class="math inline">\(\lVert x-y
-\rVert\)</span>. Los valores propios de <span class="math inline">\(K\)</span> son el análogo a los <span class="math inline">\(\lambda_i\)</span> del PCA lineal; su proporción
-cumple el mismo papel que la varianza explicada, pero calculada solo
-sobre las componentes retenidas (<code>features = 5</code>), no sobre
-todo el espacio.</p>
+solo los vecinos muy cercanos se parecen).</p>
 </blockquote>
 <pre class="r"><code>library(kernlab)
 
+# Hay que estandarizar antes: el kernel usa distancias euclidianas, y sin
+# estandarizar la altitud (en metros) dominaría por completo ||x - y||.
 datos_esc &lt;- as.data.frame(scale(datos))
 
 kp &lt;- kpca(~., data = datos_esc,
@@ -3609,6 +3601,9 @@ kp &lt;- kpca(~., data = datos_esc,
            kpar = list(sigma = 0.05),
            features = 5)
 
+# Valores propios de K: el análogo a los lambda del PCA lineal. Su proporción
+# cumple el mismo papel que la varianza explicada, pero calculada solo sobre
+# las componentes retenidas (features = 5), no sobre todo el espacio.
 eig &lt;- kp@eig
 var_exp &lt;- eig / sum(eig)
 round(var_exp, 3)</code></pre>
@@ -3713,16 +3708,15 @@ parezcan lo más posible: <span class="math display">\[ \mathrm{KL}(P
 \]</span></li>
 </ol>
 <p>Por eso preserva la estructura <strong>local</strong> y distorsiona a
-propósito las distancias globales. <code>perplexity</code> es el número
-efectivo de vecinos que se intenta preservar por punto, y
-<code>theta</code> es la aproximación de Barnes-Hut (0 = cálculo exacto
-pero mucho más lento).</p>
+propósito las distancias globales.</p>
 </blockquote>
 <pre class="r"><code>library(Rtsne)
 
 X &lt;- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 
 set.seed(123)       # la optimización arranca de una configuración aleatoria
+# perplexity: número efectivo de vecinos que se intenta preservar por punto.
+# theta: aproximación de Barnes-Hut (0 = cálculo exacto pero mucho más lento).
 tsne &lt;- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
 
 plot(tsne$Y,
@@ -3788,16 +3782,15 @@ conectados).</li>
 </ol>
 <p>Al trabajar sobre un grafo global y no solo sobre pares como t-SNE,
 UMAP conserva mejor las distancias relativas <strong>entre</strong>
-grupos, no solo dentro de cada vecindario. <code>n_neighbors</code> (por
-defecto 15, análogo a <span class="math inline">\(k\)</span>) controla
-el tamaño de ese vecindario: pequeño → estructura local; grande →
-estructura más global.</p>
+grupos, no solo dentro de cada vecindario.</p>
 </blockquote>
 <pre class="r"><code>library(uwot)
 
-X &lt;- scale(datos)
+X &lt;- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 
 set.seed(123)
+# n_neighbors (por defecto 15): tamaño del vecindario. Pequeño -&gt; estructura local;
+# grande -&gt; estructura más global.
 um &lt;- umap(X)
 head(um)</code></pre>
 <pre><code>##           [,1]       [,2]

@@ -262,6 +262,20 @@ pairs(pca$x[, 1:k],
 
 No se observan agrupamientos claros: la gran mayoría de las observaciones forma **una sola nube densa y continua**, sin separación en subgrupos. Esto es consistente con que el café arábica de este dataset es relativamente homogéneo en composición (predominan lotes de calidad "especialidad").
 
+Como comprobación adicional, coloreamos esa misma matriz por `Processing.Method` (metadato no usado como variable activa del PCA, pero disponible en `data_f`):
+
+```{r pairs-pca-color, fig.height=8, message=FALSE}
+library(GGally)
+
+pca_scores <- as.data.frame(pca$x[, 1:k])
+pca_scores$Processing.Method <- data_f$Processing.Method
+
+ggpairs(pca_scores, columns = 1:k, aes(color = Processing.Method, alpha = 0.5)) +
+  ggtitle("Matriz de dispersión de componentes principales (color = método de proceso)")
+```
+
+Tampoco aquí se observa separación por método de proceso: los lotes Washed/Wet, Natural/Dry, Semi-washed/Semi-pulped y Otro se mezclan en la misma nube — el proceso de beneficio no es, por sí solo, un factor que distinga la estructura de calidad capturada por PC1–PC4.
+
 Sí se identifican **observaciones atípicas** muy marcadas, que se repiten en varios pares de componentes:
 
 ```{r outliers}

@@ -173,6 +173,27 @@ pairs(pca$x[, 1:k],
 # multivariados. Analizar si estos patrones se repiten entre distintos
 # pares de componentes o son específicos de un par en particular.
 
+# Versión coloreada por Processing.Method (metadato no usado como variable
+# activa del PCA, disponible en `data` tras aplicar el mismo filtro que dio
+# lugar a `datos`): permite ver si el método de proceso del café separa a
+# los lotes en el espacio de componentes.
+library(GGally)
+
+processing_method <- data %>%
+  filter(is.na(altitude_mean_meters) | (altitude_mean_meters > 0 & altitude_mean_meters <= 3000)) %>%
+  filter(!is.na(altitude_mean_meters)) %>%
+  pull(Processing.Method)
+
+pca_scores <- as.data.frame(pca$x[, 1:k])
+pca_scores$Processing.Method <- processing_method
+
+ggpairs(pca_scores, columns = 1:k, aes(color = Processing.Method, alpha = 0.5)) +
+  ggtitle("Matriz de dispersión de componentes principales (color = método de proceso)")
+
+# No se observa separación por método de proceso: los lotes forman una
+# nube continua independientemente de si el café fue Washed/Wet, Natural/Dry,
+# Semi-washed/Semi-pulped u Otro.
+
 # ------------------------------------------------------------
 # 9. Biplot
 # ------------------------------------------------------------

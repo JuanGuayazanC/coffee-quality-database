@@ -89,3 +89,17 @@ datos %>%
   labs(title = "Variables físicas — distribución individual",
        x = NULL, y = "Valor") +
   theme_minimal(base_size = 13)
+
+# ── 5. Cajas ajustadas (robustas a asimetría) vs. clásicas ────────────────────
+# La regla clásica de Tukey (1.5*RIC a ambos lados) sobre-marca atípicos en
+# variables sesgadas. adjbox() (Hubert & Vandervieren) ajusta los bigotes con el
+# medcouple: Moisture pasa de 222 a 114 atípicos y Category.Two.Defects de 77 a 20.
+
+library(robustbase)
+
+par(mfrow = c(1, 2))
+adjbox(datos$Moisture, main = "Moisture (caja ajustada)", col = "lightblue")
+boxplot(datos$Moisture, main = "Moisture (caja clásica)", col = "lightpink")
+adjbox(datos$Category.Two.Defects, main = "Category.Two.Defects (ajustada)", col = "lightblue")
+boxplot(datos$Category.Two.Defects, main = "Category.Two.Defects (clásica)", col = "lightpink")
+par(mfrow = c(1, 1))

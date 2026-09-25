@@ -459,15 +459,18 @@ datos[unique(c(idx_pc1, idx_pc2, idx_pc4)), ]
 - Dos lotes con **31–47 defectos** (Category.One/Two.Defects), muy por encima del resto (mediana de Category.Two.Defects = 2): los outliers más extremos en PC2.
 - Lotes con **altitud = 1 metro**: claramente un valor de captura erróneo o un placeholder (ninguna finca de café real está a 1 msnm), visibles como atípicos en PC4.
 
-Estos patrones se mantienen entre distintos pares de componentes que involucran a PC1, PC2 o PC4, lo que confirma que son atípicos multivariados genuinos y no artefactos de una sola proyección — y refuerzan que el "tratamiento de datos" de la sección 2 podría profundizarse filtrando también estos casos evidentes de error de captura.
+Estos patrones se mantienen entre distintos pares de componentes que involucran a PC1, PC2 o PC4, así que no son artefactos de una sola proyección. **Matiz importante (sección 3.2):** no todos son atípicos genuinos por igual — el lote con todos los puntajes en cero sí lo es (sigue igual de extremo tras corregir el sesgo), pero los dos lotes con 30–31 defectos dejan de ser extremos en PC2 una vez que se corrige el sesgo de `Category.Two.Defects`, es decir, parte de su extremidad era un efecto de la escala cruda del conteo. Estos hallazgos refuerzan que el "tratamiento de datos" de la sección 2 podría profundizarse filtrando también estos casos evidentes de error de captura.
 
 > **Teoría — distancia de Mahalanobis como prueba formal de atípicos.** En vez de detectar atípicos "a ojo" en la matriz de dispersión, se puede formalizar como una prueba de hipótesis: $H_0$: la observación $x_i$ pertenece a la población; $H_a$: es atípica. El estadístico es
 > $$ d_M^2(x_i) = (x_i - \bar{x})^\top S^{-1} (x_i - \bar{x}) \;\sim\; \chi^2_p $$
 > (aproximadamente, bajo normalidad multivariada), donde $p$ es el número de variables. Se rechaza $H_0$ (se marca como atípica) si $d_M^2(x_i)$ supera el cuantil $\chi^2_{p}$ elegido como umbral.
 
 ```{r mahalanobis}
-dm2 <- mahalanobis(datos, colMeans(datos), S)
-umbral <- qchisq(0.975, df = ncol(datos))   # cuantil chi-cuadrado al 97.5%
+dm2 <- mahalanobis(datos,            # x: matriz de datos, una fila por lote
+                   colMeans(datos),  # center: vector de medias (x barra)
+                   S)                # cov: matriz de covarianzas que "descuenta" escalas y correlaciones
+umbral <- qchisq(0.975,              # p: cuantil buscado de la chi-cuadrado (97.5 %)
+                 df = ncol(datos))   # df: grados de libertad = número de variables p
 sum(dm2 > umbral)                            # observaciones marcadas como atípicas
 sort(dm2, decreasing = TRUE)[1:6]            # las 6 distancias mas extremas
 ```
@@ -487,7 +490,9 @@ Con el umbral $\chi^2_{14}$ al 97.5% (**≈ 26.1**), **89 de los 1070 lotes** (8
 > Ángulo pequeño → variables muy correlacionadas; ángulo recto → casi incorreladas; sentido opuesto → correlación negativa. La longitud de la flecha indica qué tan bien representada queda esa variable en este plano de dos componentes.
 
 ```{r biplot, fig.height=8}
-biplot(pca, choices = c(1, 2), cex = 0.6,
+biplot(pca,               # objeto prcomp: aporta scores (puntos) y cargas (flechas)
+       choices = c(1, 2), # qué dos componentes van en los ejes (PC1 y PC2)
+       cex = 0.6,         # tamaño de textos/símbolos relativo al valor por defecto (1)
        main = "Biplot PCA - Componentes 1 y 2 (café)")
 ```
 
@@ -505,7 +510,7 @@ Lo que el biplot añade frente a la matriz de dispersión es la **dirección y m
 - **Diferencia con PCA convencional:** PCA busca combinaciones *lineales* de las variables originales que maximizan varianza; Kernel PCA busca esas combinaciones en un espacio transformado no lineal, por lo que puede separar estructuras que PCA lineal no distingue (curvas, anillos, clústeres no separables linealmente).
 - **Concepto de kernel:** un kernel es una función $k(x_i, x_j)$ que mide la similitud entre dos observaciones directamente, sin necesidad de construir explícitamente la transformación $\varphi(x)$ que llevaría los datos al espacio de alta dimensión. Basta con calcular los productos internos $K_{ij} = \langle \varphi(x_i),\, \varphi(x_j) \rangle = k(x_i, x_j)$ para toda la muestra; esto es el *truco del kernel*: operar en el espacio transformado (potencialmente de dimensión infinita) a un costo computacional igual al de calcular una matriz $n \times n$ de similitudes.
 - **Kernels disponibles en `kernlab`:** `rbfdot` (RBF/gaussiano — el más versátil para relaciones no lineales suaves, parámetro `sigma`); `polydot` (polinomial, captura interacciones de grado fijo, parámetros `degree`, `scale`, `offset`); `vanilladot` (lineal — Kernel PCA con este kernel reproduce PCA convencional); `tanhdot` (sigmoide, inspirado en redes neuronales); `laplacedot` (Laplaciano, más robusto a outliers que RBF); `besseldot`, `anovadot` y `splinedot` (kernels de uso más especializado). Se eligió `rbfdot` porque es el estándar para datos continuos y suaves sin estructura de grado polinomial conocido.
-- **Principales parámetros:** `sigma` (controla qué tan "local" es la similitud: sigma pequeño → solo vecinos muy próximos se consideran similares, captura no linealidades más finas; sigma grande → el comportamiento se aproxima al kernel lineal); `features` (número de componentes de Kernel PCA a retener).
+- **Principales parámetros:** `sigma` (controla qué tan "local" es la similitud: en `kernlab`, `sigma` multiplica la distancia al cuadrado dentro de la exponencial, así que **sigma grande → la similitud decae rápido y solo los vecinos muy próximos se parecen** (kernel más local); **sigma pequeño → la similitud decae lento y la noción de "parecido" es más amplia y suave**); `features` (número de componentes de Kernel PCA a retener).
 - **Interpretación de las coordenadas:** a diferencia de PCA, no son combinaciones lineales directas de las variables originales, por lo que no se leen mediante cargas (`rotation`) sino de forma relacional — qué observaciones quedan cerca o lejos en el espacio transformado.
 
 > **Teoría — el truco del kernel.** En vez de diagonalizar $S$ o $R$, Kernel PCA diagonaliza la matriz de Gram $K_{n \times n}$, donde cada entrada mide la similitud entre dos lotes:
@@ -521,10 +526,11 @@ library(kernlab)
 # estandarizar la altitud (en metros) dominaría por completo ||x - y||.
 datos_esc <- as.data.frame(scale(datos))
 
-kp <- kpca(~., data = datos_esc,
-           kernel = "rbfdot",
-           kpar = list(sigma = 0.05),
-           features = 5)
+kp <- kpca(~.,                        # fórmula: usa todas las columnas de `data` como variables de entrada
+           data = datos_esc,           # data.frame ya estandarizado
+           kernel = "rbfdot",          # función kernel: "rbfdot" = RBF/gaussiano (el nombre se explica abajo)
+           kpar = list(sigma = 0.05),  # parámetros propios del kernel elegido; en rbfdot el único es sigma (ver justificación abajo)
+           features = 5)               # cuántas componentes de kernel calcular y conservar (el "k" del PCA lineal)
 
 # Valores propios de K: el análogo a los lambda del PCA lineal. Su proporción
 # cumple el mismo papel que la varianza explicada, pero calculada solo sobre
@@ -536,6 +542,26 @@ round(cumsum(var_exp), 3)
 ```
 
 Con `sigma = 0.05` y 5 features, la variabilidad se reparte de forma más uniforme que en PCA lineal (36.6%, 25.9%, 14.9%, 14.5%, 8.0%), sin un primer componente tan dominante como el PC1 lineal (47.7%). **Nota:** estos porcentajes están calculados solo sobre los 5 valores propios retenidos (no sobre el total del espacio de kernel), por lo que no son directamente comparables en magnitud absoluta con la varianza acumulada de PCA — sí lo son en términos de forma relativa entre componentes.
+
+## 10.1. ¿Por qué `sigma = 0.05` y no el `0.1` del enunciado?
+
+El enunciado muestra `kpar = list(sigma = 0.1)` dentro de una plantilla genérica — hasta el nombre del kernel aparece como marcador (`kernel = "nombre kernel"`) — y la sección 10 pide expresamente **investigar los principales parámetros y justificar la configuración seleccionada**. Es decir, `0.1` es un valor de ejemplo, no una instrucción; elegir `sigma` es parte del trabajo. Se compararon varios valores sobre estos datos, incluido el del enunciado:
+
+```{r kpca-sigma-justificacion, fig.height=4.5}
+par(mfrow = c(1, 3))
+for (s in c(0.05, 0.1, 1)) {
+  kp_s <- kpca(~., data = datos_esc, kernel = "rbfdot", kpar = list(sigma = s), features = 5)
+  plot(rotated(kp_s)[, 1:2], pch = 19, cex = 0.5, col = adjustcolor("darkorange", 0.4),
+       xlab = "KPC1", ylab = "KPC2", main = paste("sigma =", s))
+}
+```
+
+Con `sigma = 0.05` aparece el anillo más completo y nítido; con `sigma = 0.1` (el del enunciado) el anillo ya está más difuso y con más puntos hacia el centro; con `sigma = 1` se rompe en una forma radial. (En una exploración adicional, `sigma = 0.01` daba solo un arco parcial.) La variabilidad explicada casi no distingue estos valores (por ejemplo, 36.6 % / 25.9 % con `0.05` frente a 33.0 % / 29.7 % con `0.1` en las dos primeras componentes), así que el criterio de elección es **cuál representación muestra con más claridad la estructura no lineal** — que es justamente lo que Kernel PCA busca aportar. Por eso `0.05` es la configuración principal y `sigma = 1` el contraste de sensibilidad de la sección 11.
+
+## 10.2. ¿Por qué el kernel se llama así (`rbfdot`)?
+
+- **RBF = *Radial Basis Function* (función de base radial).** El valor $k(x,y) = \exp(-\sigma\lVert x-y\rVert^2)$ depende **solo de la distancia** $\lVert x-y\rVert$ entre los dos puntos — no de su dirección ni de su posición absoluta. Es "radial" porque las curvas de nivel (los puntos con la misma similitud respecto de un centro) son círculos/esferas. La versión con exponencial del cuadrado de la distancia es la **gaussiana**, por eso "RBF" y "kernel gaussiano" se usan casi como sinónimos.
+- **`dot` = producto punto.** En `kernlab` todos los kernels terminan en `-dot` (`rbfdot`, `polydot`, `vanilladot`, `laplacedot`…) porque un kernel calcula, por definición, un **producto interno** $\langle\varphi(x),\varphi(y)\rangle$ en un espacio transformado sin construirlo explícitamente (el truco del kernel). `vanilladot` es el producto punto ordinario (kernel lineal); los demás son productos punto en otros espacios.
 
 ---
 
@@ -566,7 +592,7 @@ pairs(rotated(kp_sigma_alto)[, 1:5],
       pch = 19, col = adjustcolor("firebrick", alpha.f = 0.4))
 ```
 
-Al aumentar `sigma` a 1 (vecindades más "anchas", similitud menos local), el anillo desaparece y aparecen en su lugar **patrones radiales en forma de estrella/V** muy marcados entre varios pares de componentes. Esto ilustra de forma muy directa que Kernel PCA es altamente sensible a la elección de `sigma`: no hay una única "forma verdadera" de los datos en este espacio, sino una familia de representaciones que dependen del parámetro elegido — un punto importante para la discusión crítica del taller.
+Al aumentar `sigma` a 1 (similitud mucho más local: solo los vecinos muy próximos se parecen), el anillo desaparece y aparecen en su lugar **patrones radiales en forma de estrella/V** muy marcados entre varios pares de componentes. Esto ilustra de forma muy directa que Kernel PCA es altamente sensible a la elección de `sigma`: no hay una única "forma verdadera" de los datos en este espacio, sino una familia de representaciones que dependen del parámetro elegido — un punto importante para la discusión crítica del taller.
 
 ---
 
@@ -600,7 +626,10 @@ X <- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 set.seed(123)       # la optimización arranca de una configuración aleatoria
 # perplexity: número efectivo de vecinos que se intenta preservar por punto.
 # theta: aproximación de Barnes-Hut (0 = cálculo exacto pero mucho más lento).
-tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
+tsne <- Rtsne(X,                 # matriz estandarizada n x p (una fila por lote)
+              dims = 2,          # dimensiones de salida (2 para poder graficar en el plano)
+              perplexity = 30,   # tamaño efectivo de vecindario por punto (regla práctica ~1000 obs: 20-50)
+              theta = 0.5)       # Barnes-Hut: 0 = exacto y lento; más cercano a 1 = más rápido y aproximado
 
 plot(tsne$Y,
      pch = 19, col = adjustcolor("seagreen", alpha.f = 0.5),
@@ -651,10 +680,11 @@ library(uwot)
 
 X <- scale(datos)   # usa distancias euclidianas: hay que estandarizar
 
-set.seed(123)
-# n_neighbors (por defecto 15): tamaño del vecindario. Pequeño -> estructura local;
-# grande -> estructura más global.
-um <- umap(X)
+set.seed(123)   # UMAP también parte de una inicialización aleatoria: la semilla fija hace reproducible la figura
+# umap(X) usa los valores por defecto de uwot; los dos parámetros que más importan son:
+#   n_neighbors = 15  -> tamaño del vecindario (pequeño = estructura local; grande = más global)
+#   min_dist    = 0.01 -> qué tan apretados quedan los puntos dentro de un grupo (menor = más compactos)
+um <- umap(X)   # X: matriz estandarizada n x p; devuelve una matriz n x 2 (n_components = 2 por defecto)
 head(um)
 
 plot(um[, 1], um[, 2],
@@ -704,7 +734,7 @@ Con `n_neighbors = 5` (vecindarios más pequeños) el grupo con `Moisture = 0` *
 | Relación con variables originales | Explícita (`pca$rotation`) | Indirecta (vía el kernel) | Ninguna | Ninguna |
 | Patrones identificados | Un eje dominante de calidad sensorial (PC1) + defectos (PC2) + uniformidad/dulzura (PC3) + altitud/humedad (PC4) | Estructura en anillo (sigma bajo) o radial/estrella (sigma alto); sensible al parámetro | Nube continua, sin clústeres discretos; se fragmenta con perplexity baja | Separa un subgrupo real (`Moisture` = 0) de forma robusta a los parámetros |
 | Agrupamientos | No hay grupos discretos, solo un continuo | No hay grupos discretos claros | No hay grupos discretos claros | Sí: 2 grupos, uno ligado a un problema de datos faltantes |
-| Posibles atípicos | Sí, muy claros (lote con todo en 0, lotes con 30+ defectos, altitud = 1 m) | Se difuminan un poco por la transformación no lineal | Difíciles de distinguir de ruido local | El "grupo" separado es en realidad un artefacto de datos, no un atípico puntual |
+| Posibles atípicos | Sí, muy claros (lote con todo en 0, altitud = 1 m; los lotes con 30+ defectos lucen extremos, pero parte de esa extremidad es efecto del sesgo de `Category.Two.Defects`, sección 3.2) | Se difuminan un poco por la transformación no lineal | Difíciles de distinguir de ruido local | El "grupo" separado es en realidad un artefacto de datos, no un atípico puntual |
 | Utilidad principal | Resumir varianza e interpretar ejes de calidad | Explorar estructura no lineal | Visualización exploratoria de vecindades | Visualización exploratoria + detección de subpoblaciones/anomalías de datos |
 | Uso potencial en modelamiento | Sí, como reducción de dimensión previa a un modelo (ejes estables y proyectables) | Parcialmente (proyección de nuevas obs. es posible pero más costosa) | No recomendado como *feature* de entrada | No recomendado como *feature* de entrada |
 | Transformación de nuevas observaciones | Directa (multiplicar por `rotation`) | Posible pero requiere reevaluar el kernel contra los datos de entrenamiento | No definida de forma nativa | Sí, vía `uwot::umap_transform()` (usa el grafo de vecinos ya ajustado; no es una proyección lineal cerrada como PCA) |

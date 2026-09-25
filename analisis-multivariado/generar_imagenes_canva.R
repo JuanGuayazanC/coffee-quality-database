@@ -189,10 +189,33 @@ p <- ggplot(df_hist, aes(x = valor, fill = tipo)) +
 ggsave("imagenes_canva/06_cat2_distribucion_antes_despues.png",
        plot = p, width = 14, height = 6, dpi = 150, bg = "white")
 
-cat("\n✓ 6 imágenes generadas en analisis-multivariado/imagenes_canva/\n")
+# ── 07. Matriz de correlación (diapositiva 3, Exploración) ────────────────────
+
+R_mat <- cor(datos)
+df_cor <- as.data.frame(as.table(R_mat))
+names(df_cor) <- c("x", "y", "r")
+df_cor$x <- factor(df_cor$x, levels = vars_cuantitativas)
+df_cor$y <- factor(df_cor$y, levels = rev(vars_cuantitativas))
+
+p <- ggplot(df_cor, aes(x, y, fill = r)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", r)), size = 3.3, color = "#061d3d") +
+  scale_fill_gradient2(low = "#4575b4", mid = "white", high = "#d73027",
+                       midpoint = 0, limits = c(-1, 1), name = "r") +
+  labs(title = "Matriz de correlación de las 14 variables", x = NULL, y = NULL) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", color = "#061d3d"))
+
+ggsave("imagenes_canva/07_matriz_correlacion.png",
+       plot = p, width = 9.5, height = 8.5, dpi = 150, bg = "white")
+
+cat("\n✓ 7 imágenes generadas en analisis-multivariado/imagenes_canva/\n")
 cat("  01_moisture_cajas_comparacion.png\n")
 cat("  02_defectos2_cajas_comparacion.png\n")
 cat("  03_cajas_panel_completo.png\n")
 cat("  04_yeojohnson_cat2_loglik.png\n")
 cat("  05_yeojohnson_infladas_cero.png\n")
 cat("  06_cat2_distribucion_antes_despues.png\n")
+cat("  07_matriz_correlacion.png\n")

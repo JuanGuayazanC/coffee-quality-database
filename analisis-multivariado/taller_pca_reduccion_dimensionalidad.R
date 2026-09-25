@@ -114,6 +114,30 @@ varianza_generalizada_media
 # al depender de la dimensión y de las unidades de cada variable.
 
 # ------------------------------------------------------------
+# 4.3. Transformación de Yeo-Johnson (solo Category.Two.Defects)
+# ------------------------------------------------------------
+# Category.Two.Defects es muy asimétrica (informe, sección 3.1) y su lambda de
+# máxima verosimilitud es estable (~ -0.217). Moisture y Category.One.Defects
+# están infladas en cero: lambda se pega al borde del rango y no se transforman.
+yeojohnson_transform <- function(x, lambda) {
+  if (lambda != 0) ((x + 1)^lambda - 1) / lambda else log(x + 1)
+}
+yeojohnson_loglik <- function(lambda, x) {
+  y <- yeojohnson_transform(x, lambda)
+  -length(x) / 2 * log(var(y)) + (lambda - 1) * sum(log(x + 1))
+}
+yeojohnson_fit <- function(x) {
+  optimize(yeojohnson_loglik, interval = c(-5, 5), x = x, maximum = TRUE)$maximum
+}
+
+lambda_c2 <- yeojohnson_fit(datos$Category.Two.Defects)
+lambda_c2
+
+# datos_t: conjunto oficial del análisis (13 variables originales + Category.Two.Defects transformada)
+datos_t <- datos
+datos_t$Category.Two.Defects <- yeojohnson_transform(datos$Category.Two.Defects, lambda_c2)
+
+# ------------------------------------------------------------
 # 5. Análisis de Componentes Principales
 # ------------------------------------------------------------
 # Decisión: ESTANDARIZAR. Las variables tienen unidades y escalas muy
@@ -122,7 +146,7 @@ varianza_generalizada_media
 # total y, por tanto, el primer componente, ocultando la estructura de los
 # puntajes sensoriales que es el objeto real de interés del análisis.
 
-pca <- prcomp(datos, center = TRUE, scale. = TRUE)
+pca <- prcomp(datos_t, center = TRUE, scale. = TRUE)
 
 # ------------------------------------------------------------
 # 6. Selección del número de componentes
@@ -210,7 +234,7 @@ biplot(pca, choices = c(1, 2), cex = 0.6,
 # ------------------------------------------------------------
 library(kernlab)
 
-datos_esc <- as.data.frame(scale(datos))
+datos_esc <- as.data.frame(scale(datos_t))
 
 kp <- kpca(~., data = datos_esc,
            kernel = "rbfdot",
@@ -257,7 +281,7 @@ pairs(rotated(kp_sigma_alto)[, 1:5],
 # ------------------------------------------------------------
 library(Rtsne)
 
-X <- scale(datos)
+X <- scale(datos_t)
 
 set.seed(123)
 tsne <- Rtsne(X, dims = 2, perplexity = 30, theta = 0.5)
@@ -285,7 +309,7 @@ plot(tsne_perp5$Y,
 # ------------------------------------------------------------
 library(uwot)
 
-X <- scale(datos)
+X <- scale(datos_t)
 
 set.seed(123)
 um <- umap(X)

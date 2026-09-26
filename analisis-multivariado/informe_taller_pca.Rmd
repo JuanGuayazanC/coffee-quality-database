@@ -131,6 +131,19 @@ mc_vars <- sapply(datos, mc)   # medcouple: asimetría robusta de cada variable,
 round(mc_vars, 3)
 ```
 
+El medcouple mide asimetría de forma robusta (usa medianas, no medias), pero se complementa con el **coeficiente de asimetría de Pearson**, que cuantifica el sesgo en términos de la distancia entre la media y la mediana. Ambos indicadores deben señalar en la misma dirección; si alguno detecta sesgo relevante, la variable se trata como sesgada.
+
+```{r pearson-skewness}
+# Coeficiente de asimetría de Pearson: 3*(media - mediana) / desv.estándar
+# Valores típicos: |AP| > 0.5 indica sesgo moderado; |AP| > 1 indica sesgo fuerte
+asimetria_pearson <- sapply(datos, function(x) {
+  3 * (mean(x) - median(x)) / sd(x)
+})
+round(asimetria_pearson, 3)
+```
+
+Ambos indicadores coinciden en señalar sesgo pronunciado en `Moisture` (MC ≈ negativo, AP < −0.5) y en `Category.Two.Defects` (MC y AP ambos positivos y altos), confirmando que estas variables requieren atención especial. Las variables sensoriales acotadas (Uniformity, Clean.Cup, Sweetness) muestran valores extremos de medcouple pero AP cercano a cero, lo que refleja su naturaleza discreta y concentrada en el máximo — no un sesgo estadístico clásico.
+
 ```{r cajas-ajustadas}
 comparar_outliers <- function(x) {
   clasico <- sum(x < quantile(x, .25) - 1.5 * IQR(x) |
@@ -375,51 +388,9 @@ screeplot(pca,
 
 ---
 
-# 7. Interpretación de las componentes
+# 7. Verificación de los componentes: matriz de dispersión
 
-> **Teoría — cargas (loadings).** Son los vectores propios de $R$ (la matriz $A$ de la sección anterior): cada columna de `pca$rotation` es el vector $a_k$ de una componente, y la proyección se calcula como
-> $$ Z_k = a_{1k} X_1^{*} + a_{2k} X_2^{*} + \cdots + a_{pk} X_p^{*} $$
-> donde $X_i^{*}$ son las variables estandarizadas y $a_{ik}$ (la carga de $X_i$ en la componente $k$) es el peso de esa variable original dentro de la componente. Se interpreta mirando qué variables tienen carga alta en valor absoluto y con qué signo: **mismo signo** → esas variables se mueven juntas en ese eje; **signo opuesto** → se oponen. El signo global de una componente es arbitrario — lo que importa son los contrastes.
-
-```{r cargas}
-round(pca$rotation[, 1:4], 3)
-```
-
-### PC1 (47.6 % de la varianza) — "calidad sensorial general"
-
-- **Variables con mayor peso:** Flavor (−0.362), Aftertaste (−0.359), Balance (−0.346), Acidity (−0.338), Cupper.Points (−0.337), Body (−0.337) y Aroma (−0.333) — los siete puntajes de catación "de intensidad", todos con magnitud entre 0.33 y 0.36.
-- **Variables con comportamientos similares:** Uniformity (−0.234), Clean.Cup (−0.216) y Sweetness (−0.223) tienen el mismo signo que el bloque anterior, aunque con menos peso: se mueven en la misma dirección que el resto de la calidad sensorial, solo que más débilmente.
-- **Variables que aparecen en sentidos opuestos:** ninguna con peso relevante — `Moisture` (0.071), `Category.One.Defects` (0.039), `Category.Two.Defects` (0.074, ya transformada) y `altitude_mean_meters` (−0.071) tienen cargas prácticamente nulas. PC1 no contrasta nada contra la calidad sensorial: es un eje de una sola dirección.
-- **Significado de la componente en el contexto de los datos:** un eje único de "qué tan bien puntuó el lote en general". Lotes con mejor desempeño en todos los atributos de cata (los diez puntajes, con más peso en los siete de intensidad) tienen valores muy negativos en PC1 — el signo es arbitrario, lo que importa es que las diez variables sensoriales se mueven juntas. Es el resumen de "qué tan buena es la taza", sin distinguir todavía matices entre atributos. Es idéntico al PC1 del PCA sin transformar (sección 3.2).
-
-**Lectura práctica del score PC1:** si quisieras ordenar los 1.070 lotes de peor a mejor café usando una sola cifra, ese número sería el score de PC1. Los lotes con score muy negativo en PC1 tienen Aroma, Flavor, Aftertaste, Balance y los demás puntajes sensoriales altos al mismo tiempo; los del extremo positivo los tienen todos bajos. Cualquier lote nuevo (ya estandarizado con las mismas medias y desviaciones) puede proyectarse sobre PC1 con una multiplicación y quedar ubicado en ese ranking sin necesidad de recalcular el PCA completo.
-
-### PC2 (9.6 %) — "consistencia y dulzura del lote vs. intensidad sensorial"
-
-- **Variables con mayor peso:** Sweetness (0.533), Clean.Cup (0.468) y Uniformity (0.458).
-- **Variables con comportamientos similares:** `Moisture` (0.368) se suma a ese grupo con el mismo signo — un bloque de "consistencia del lote" (dulzura, limpieza de taza, uniformidad y humedad) que se mueve unido.
-- **Variables que aparecen en sentidos opuestos:** los siete puntajes de intensidad sensorial (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) tienen cargas negativas moderadas (−0.10 a −0.14), y `altitude_mean_meters` también es negativa y algo mayor (−0.200) — todas de signo contrario al bloque de consistencia.
-- **Significado de la componente en el contexto de los datos:** PC2 distingue, dentro de lotes ya parecidos en PC1, a los que destacan más en "consistencia y dulzura de taza" (uniformidad, ausencia de defectos de limpieza, dulzura, más humedad) de los que destacan más en "intensidad sensorial y altitud" — un matiz secundario que PC1 no capturaba porque promediaba todos los atributos juntos. En el PCA sin transformar este mismo eje aparecía como PC3; sube a PC2 porque, al corregir el sesgo de `Category.Two.Defects`, el eje de defectos deja de ser el segundo en varianza.
-
-### PC3 (9.0 %) — "defectos físicos y humedad"
-
-- **Variables con mayor peso:** `Category.Two.Defects` (0.652, ya transformada) y `Category.One.Defects` (0.535).
-- **Variables con comportamientos similares:** `Moisture` (0.405) y `altitude_mean_meters` (0.248) se suman con el mismo signo — más humedad y más altitud tienden a acompañar a más defectos registrados.
-- **Variables que aparecen en sentidos opuestos:** ninguna con peso apreciable (`Clean.Cup`, −0.179, es la más notoria, pero modesta): lotes con más defectos físicos tienden, en este eje, a una taza ligeramente menos "limpia".
-- **Significado de la componente en el contexto de los datos:** un eje de calidad física del grano, casi ortogonal a PC1 — mide defectos y humedad, no sabor. Confirma que la calidad física varía de forma prácticamente independiente de la calidad sensorial: un lote puede puntuar alto en catación y aun así tener defectos físicos relevantes, y viceversa. Antes de transformar `Category.Two.Defects` este eje era PC2 (con cargas ≈ −0.66 en ambos conteos de defectos); tras la transformación conserva la misma lectura, pero ocupa el tercer lugar por varianza.
-
-**Por qué PC3 captura esto y PC1 no:** PC1 ya "agotó" la variación que comparten los diez puntajes sensoriales juntos. Lo que quedó sin explicar tras PC1 — la variación en Category.One/Two.Defects y Moisture — no siguió el mismo patrón de los puntajes sensoriales, así que una componente ortogonal tomó esa dirección. En términos prácticos: saber que un lote está en el extremo de PC1 (muy buena taza) no te dice nada sobre cuántos defectos físicos tiene su grano; para saberlo hay que mirar PC3.
-
-### PC4 (7.5 %) — "altitud y humedad, con menos defectos primarios"
-
-- **Variables con mayor peso:** `altitude_mean_meters` (0.754), muy por encima de cualquier otra variable.
-- **Variables con comportamientos similares:** `Moisture` (0.219) acompaña con el mismo signo, aunque con menos peso — en este eje, fincas más altas están asociadas a algo más de humedad medida en el grano.
-- **Variables que aparecen en sentidos opuestos:** `Category.One.Defects` (−0.594) es la única carga adicional grande y tiene signo contrario — lotes de fincas más altas tienden a tener, en este eje, menos defectos primarios. El resto de variables (los diez puntajes sensoriales y `Category.Two.Defects`, 0.094) quedan por debajo de 0.10 en valor absoluto.
-- **Significado de la componente en el contexto de los datos:** un eje de metadatos agroclimáticos y de proceso — altitud y, en contraste, defectos primarios —, prácticamente desconectado de la calidad sensorial (PC1) y de la consistencia de taza (PC2). Frente al PCA sin transformar la oposición altitud vs. defectos primarios es mucho más marcada (−0.594 frente a −0.237).
-
----
-
-# 8. Matriz de gráficos de dispersión de las componentes
+> **Por qué verificar antes de interpretar.** La interpretación de las cargas solo tiene sentido si los componentes no presentan problemas — atípicos extremos, patrones lineales entre pares de componentes o tendencias sistemáticas que delaten que el PCA capturó un artefacto en vez de estructura real. El orden correcto es: **primero verificar** que la nube de puntos luzca bien (dispersa, sin tendencias), **y solo entonces interpretar** los ejes. Si se invierte ese orden y después se encuentran problemas, toda la interpretación queda invalidada y hay que volver a correr.
 
 > **Teoría — scores.** Son las coordenadas de cada lote en la nueva base de componentes: el mismo dato, visto desde otros ejes.
 > $$ \text{pca\$x} = X^{*} \, A $$
@@ -436,6 +407,8 @@ pairs(pca$x[, 1:k],   # matriz n x k: pairs() grafica cada par de columnas entre
       pch = 19,   # 19 = código de símbolo de R para "círculo relleno"
       col = adjustcolor("steelblue", alpha.f = 0.4))  # adjustcolor(color, alpha.f): mismo color con transparencia (0 = invisible, 1 = opaco); ayuda a ver dónde se acumulan más puntos superpuestos
 ```
+
+**Verificación superada: los paneles muestran nubes sin tendencias lineales.** No se observan patrones tipo "línea" o "rayo" en ningún par de componentes, lo que confirma que las componentes capturan variación real y no un artefacto de las variables originales sin transformar. Si hubiera aparecido un patrón lineal o una nube muy alargada en diagonal, la señal sería que alguna variable necesita transformación adicional — y habría que corregirla antes de interpretar (exactamente el problema que resolvió la transformación Yeo-Johnson de la sección 3.2).
 
 No se observan agrupamientos claros: la gran mayoría de las observaciones forma **una sola nube densa y continua**, sin separación en subgrupos. Esto es consistente con que el café arábica de este dataset es relativamente homogéneo en composición (predominan lotes de calidad "especialidad").
 
@@ -489,9 +462,55 @@ sort(dm2, decreasing = TRUE)[1:6]            # las 6 distancias mas extremas
 
 Con el umbral $\chi^2_{14}$ al 97.5% (**≈ 26.1**), **85 de los 1070 lotes** (7.9%) quedan marcados como atípicos multivariados — muy por encima del 2.5% esperado bajo normalidad multivariada, lo que sugiere que esa suposición no se sostiene bien aquí (variables acotadas como los puntajes 0–10 o los conteos de defectos no son verdaderamente normales). Aun así, la prueba **confirma** los mismos casos ya detectados visualmente: el lote con todos los puntajes en cero ($d_M^2 \approx 654$, el más extremo de todos) y los lotes con 31 defectos primarios (fila 435, $d_M^2 \approx 300$; fila 1014, con 31/47 defectos, $d_M^2 \approx 288$) están entre los primeros lugares, junto con otros casos no tan evidentes en la matriz de dispersión (p. ej. un lote con `Clean.Cup = 1.33` y `Sweetness = 1.33`, $d_M^2 \approx 410$, o uno con `Clean.Cup = 0` y 20 defectos secundarios, $d_M^2 \approx 252$).
 
-> **Nota — relación entre Mahalanobis y las componentes.** Usando $S = A\Lambda A^\top$, la distancia de Mahalanobis se puede reescribir en términos de las coordenadas $Z = \tilde{X}A$ de la sección 8:
+> **Nota — relación entre Mahalanobis y las componentes.** Usando $S = A\Lambda A^\top$, la distancia de Mahalanobis se puede reescribir en términos de las coordenadas $Z = \tilde{X}A$ de la sección 7:
 > $$ d_M^2(x_i) = \sum_{k=1}^{p} \left(\frac{z_{ik}}{\sqrt{\lambda_k}}\right)^2 $$
-> Es decir, **la distancia de Mahalanobis es exactamente la distancia euclídea en el espacio de PCA, una vez que cada componente se reescala dividiendo por su propia desviación estándar** $\sqrt{\lambda_k}$ (`pca$sdev`). Buscar atípicos con Mahalanobis y buscarlos como puntos alejados en la matriz de dispersión de la sección 8 son, en el fondo, la misma idea — la ventaja de Mahalanobis es que da un umbral formal ($\chi^2_p$) en vez de juzgar "a ojo".
+> Es decir, **la distancia de Mahalanobis es exactamente la distancia euclídea en el espacio de PCA, una vez que cada componente se reescala dividiendo por su propia desviación estándar** $\sqrt{\lambda_k}$ (`pca$sdev`). Buscar atípicos con Mahalanobis y buscarlos como puntos alejados en la matriz de dispersión de la sección 7 son, en el fondo, la misma idea — la ventaja de Mahalanobis es que da un umbral formal ($\chi^2_p$) en vez de juzgar "a ojo".
+
+---
+
+# 8. Interpretación de las componentes
+
+> **Nota:** esta sección interpreta los ejes **después** de haber verificado en la sección 7 que los componentes no presentan patrones ni tendencias problemáticas. Ese orden — verificar primero, interpretar después — es el estándar recomendado: si la interpretación se hace antes y luego se encuentran problemas, hay que reinterpretarlo todo desde cero.
+
+> **Teoría — cargas (loadings).** Son los vectores propios de $R$ (la matriz $A$ de la sección anterior): cada columna de `pca$rotation` es el vector $a_k$ de una componente, y la proyección se calcula como
+> $$ Z_k = a_{1k} X_1^{*} + a_{2k} X_2^{*} + \cdots + a_{pk} X_p^{*} $$
+> donde $X_i^{*}$ son las variables estandarizadas y $a_{ik}$ (la carga de $X_i$ en la componente $k$) es el peso de esa variable original dentro de la componente. Se interpreta mirando qué variables tienen carga alta en valor absoluto y con qué signo: **mismo signo** → esas variables se mueven juntas en ese eje; **signo opuesto** → se oponen. El signo global de una componente es arbitrario — lo que importa son los contrastes.
+
+```{r cargas}
+round(pca$rotation[, 1:4], 3)
+```
+
+### PC1 (47.6 % de la varianza) — "calidad sensorial general"
+
+- **Variables con mayor peso:** Flavor (−0.362), Aftertaste (−0.359), Balance (−0.346), Acidity (−0.338), Cupper.Points (−0.337), Body (−0.337) y Aroma (−0.333) — los siete puntajes de catación "de intensidad", todos con magnitud entre 0.33 y 0.36.
+- **Variables con comportamientos similares:** Uniformity (−0.234), Clean.Cup (−0.216) y Sweetness (−0.223) tienen el mismo signo que el bloque anterior, aunque con menos peso: se mueven en la misma dirección que el resto de la calidad sensorial, solo que más débilmente.
+- **Variables que aparecen en sentidos opuestos:** ninguna con peso relevante — `Moisture` (0.071), `Category.One.Defects` (0.039), `Category.Two.Defects` (0.074, ya transformada) y `altitude_mean_meters` (−0.071) tienen cargas prácticamente nulas. PC1 no contrasta nada contra la calidad sensorial: es un eje de una sola dirección.
+- **Significado de la componente en el contexto de los datos:** un eje único de "qué tan bien puntuó el lote en general". Lotes con mejor desempeño en todos los atributos de cata (los diez puntajes, con más peso en los siete de intensidad) tienen valores muy negativos en PC1 — el signo es arbitrario, lo que importa es que las diez variables sensoriales se mueven juntas. Es el resumen de "qué tan buena es la taza", sin distinguir todavía matices entre atributos. Es idéntico al PC1 del PCA sin transformar (sección 3.2).
+
+**Lectura práctica del score PC1:** si quisieras ordenar los 1.070 lotes de peor a mejor café usando una sola cifra, ese número sería el score de PC1. Los lotes con score muy negativo en PC1 tienen Aroma, Flavor, Aftertaste, Balance y los demás puntajes sensoriales altos al mismo tiempo; los del extremo positivo los tienen todos bajos. Cualquier lote nuevo (ya estandarizado con las mismas medias y desviaciones) puede proyectarse sobre PC1 con una multiplicación y quedar ubicado en ese ranking sin necesidad de recalcular el PCA completo.
+
+### PC2 (9.6 %) — "consistencia y dulzura del lote vs. intensidad sensorial"
+
+- **Variables con mayor peso:** Sweetness (0.533), Clean.Cup (0.468) y Uniformity (0.458).
+- **Variables con comportamientos similares:** `Moisture` (0.368) se suma a ese grupo con el mismo signo — un bloque de "consistencia del lote" (dulzura, limpieza de taza, uniformidad y humedad) que se mueve unido.
+- **Variables que aparecen en sentidos opuestos:** los siete puntajes de intensidad sensorial (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) tienen cargas negativas moderadas (−0.10 a −0.14), y `altitude_mean_meters` también es negativa y algo mayor (−0.200) — todas de signo contrario al bloque de consistencia.
+- **Significado de la componente en el contexto de los datos:** PC2 distingue, dentro de lotes ya parecidos en PC1, a los que destacan más en "consistencia y dulzura de taza" (uniformidad, ausencia de defectos de limpieza, dulzura, más humedad) de los que destacan más en "intensidad sensorial y altitud" — un matiz secundario que PC1 no capturaba porque promediaba todos los atributos juntos. En el PCA sin transformar este mismo eje aparecía como PC3; sube a PC2 porque, al corregir el sesgo de `Category.Two.Defects`, el eje de defectos deja de ser el segundo en varianza.
+
+### PC3 (9.0 %) — "defectos físicos y humedad"
+
+- **Variables con mayor peso:** `Category.Two.Defects` (0.652, ya transformada) y `Category.One.Defects` (0.535).
+- **Variables con comportamientos similares:** `Moisture` (0.405) y `altitude_mean_meters` (0.248) se suman con el mismo signo — más humedad y más altitud tienden a acompañar a más defectos registrados.
+- **Variables que aparecen en sentidos opuestos:** ninguna con peso apreciable (`Clean.Cup`, −0.179, es la más notoria, pero modesta): lotes con más defectos físicos tienden, en este eje, a una taza ligeramente menos "limpia".
+- **Significado de la componente en el contexto de los datos:** un eje de calidad física del grano, casi ortogonal a PC1 — mide defectos y humedad, no sabor. Confirma que la calidad física varía de forma prácticamente independiente de la calidad sensorial: un lote puede puntuar alto en catación y aun así tener defectos físicos relevantes, y viceversa. Antes de transformar `Category.Two.Defects` este eje era PC2 (con cargas ≈ −0.66 en ambos conteos de defectos); tras la transformación conserva la misma lectura, pero ocupa el tercer lugar por varianza.
+
+**Por qué PC3 captura esto y PC1 no:** PC1 ya "agotó" la variación que comparten los diez puntajes sensoriales juntos. Lo que quedó sin explicar tras PC1 — la variación en Category.One/Two.Defects y Moisture — no siguió el mismo patrón de los puntajes sensoriales, así que una componente ortogonal tomó esa dirección. En términos prácticos: saber que un lote está en el extremo de PC1 (muy buena taza) no te dice nada sobre cuántos defectos físicos tiene su grano; para saberlo hay que mirar PC3.
+
+### PC4 (7.5 %) — "altitud y humedad, con menos defectos primarios"
+
+- **Variables con mayor peso:** `altitude_mean_meters` (0.754), muy por encima de cualquier otra variable.
+- **Variables con comportamientos similares:** `Moisture` (0.219) acompaña con el mismo signo, aunque con menos peso — en este eje, fincas más altas están asociadas a algo más de humedad medida en el grano.
+- **Variables que aparecen en sentidos opuestos:** `Category.One.Defects` (−0.594) es la única carga adicional grande y tiene signo contrario — lotes de fincas más altas tienden a tener, en este eje, menos defectos primarios. El resto de variables (los diez puntajes sensoriales y `Category.Two.Defects`, 0.094) quedan por debajo de 0.10 en valor absoluto.
+- **Significado de la componente en el contexto de los datos:** un eje de metadatos agroclimáticos y de proceso — altitud y, en contraste, defectos primarios —, prácticamente desconectado de la calidad sensorial (PC1) y de la consistencia de taza (PC2). Frente al PCA sin transformar la oposición altitud vs. defectos primarios es mucho más marcada (−0.594 frente a −0.237).
 
 ---
 

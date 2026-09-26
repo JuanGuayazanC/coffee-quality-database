@@ -610,6 +610,66 @@ Con `sigma = 0.05` aparece el anillo más completo y nítido; con `sigma = 0.1` 
 - **RBF = *Radial Basis Function* (función de base radial).** El valor $k(x,y) = \exp(-\sigma\lVert x-y\rVert^2)$ depende **solo de la distancia** $\lVert x-y\rVert$ entre los dos puntos — no de su dirección ni de su posición absoluta. Es "radial" porque las curvas de nivel (los puntos con la misma similitud respecto de un centro) son círculos/esferas. La versión con exponencial del cuadrado de la distancia es la **gaussiana**, por eso "RBF" y "kernel gaussiano" se usan casi como sinónimos.
 - **`dot` = producto punto.** En `kernlab` todos los kernels terminan en `-dot` (`rbfdot`, `polydot`, `vanilladot`, `laplacedot`…) porque un kernel calcula, por definición, un **producto interno** $\langle\varphi(x),\varphi(y)\rangle$ en un espacio transformado sin construirlo explícitamente (el truco del kernel). `vanilladot` es el producto punto ordinario (kernel lineal); los demás son productos punto en otros espacios.
 
+## 10.3. Comparación con el kernel polinomial
+
+El feedback recibido sobre el análisis señala que **comparar al menos dos kernels** es práctica estándar, porque solo con uno no se puede saber si la estructura observada es propia de los datos o un artefacto de la forma funcional del kernel. Se compara aquí el RBF ya analizado con el **kernel polinomial**:
+
+> $$ k(x, y) = (\text{scale} \cdot \langle x, y \rangle + \text{offset})^{\text{degree}} $$
+>
+> Con `degree = 2` (cuadrático) captura interacciones de segundo orden entre variables — pares de variables que juntas influyen en la similitud aunque individualmente no lo hagan. Con `degree = 1` y `scale = 1`, `offset = 0` reproduce el kernel lineal (equivalente a PCA). Se usa `degree = 2` como el caso más simple que ya introduce no linealidad, y `degree = 3` (cúbico) como contraste.
+
+```{r kpca-polinomial, fig.height=4.5}
+par(mfrow = c(1, 3))
+
+# Kernel RBF (referencia, sigma = 0.05)
+plot(rotated(kp)[, 1:2], pch = 19, cex = 0.5,
+     col = adjustcolor("darkorange", 0.4),
+     xlab = "KPC1", ylab = "KPC2",
+     main = "RBF (sigma = 0.05)")
+
+# Kernel polinomial, grado 2
+kp_poly2 <- kpca(~., data = datos_esc,
+                 kernel = "polydot",
+                 kpar = list(degree = 2, scale = 1, offset = 1),
+                 features = 5)
+plot(rotated(kp_poly2)[, 1:2], pch = 19, cex = 0.5,
+     col = adjustcolor("steelblue", 0.4),
+     xlab = "KPC1", ylab = "KPC2",
+     main = "Polinomial grado 2")
+
+# Kernel polinomial, grado 3
+kp_poly3 <- kpca(~., data = datos_esc,
+                 kernel = "polydot",
+                 kpar = list(degree = 3, scale = 1, offset = 1),
+                 features = 5)
+plot(rotated(kp_poly3)[, 1:2], pch = 19, cex = 0.5,
+     col = adjustcolor("forestgreen", 0.4),
+     xlab = "KPC1", ylab = "KPC2",
+     main = "Polinomial grado 3")
+```
+
+```{r kpca-polinomial-varianza}
+# Varianza explicada por cada kernel (sobre las 5 componentes retenidas)
+var_rbf   <- round(kp@eig       / sum(kp@eig),        3)
+var_poly2 <- round(kp_poly2@eig / sum(kp_poly2@eig),  3)
+var_poly3 <- round(kp_poly3@eig / sum(kp_poly3@eig),  3)
+
+data.frame(
+  Componente = paste0("KPC", 1:5),
+  RBF_0.05   = var_rbf,
+  Polin_g2   = var_poly2,
+  Polin_g3   = var_poly3
+)
+```
+
+**¿Qué muestra la comparación?**
+
+- **RBF (sigma = 0.05):** produce el anillo/herradura ya descrito — una estructura circular que no existe en PCA lineal. Varianza repartida de forma moderadamente uniforme entre las 5 componentes.
+- **Polinomial grado 2:** la nube recupera una forma más parecida a la de PCA lineal (elíptica, con una componente dominante), pero con algunos puntos redistribuidos respecto al lineal. El kernel cuadrático captura interacciones de segundo orden entre variables, que en datos de calidad sensorial resultan tener poca magnitud — la mayoría de la varianza ya está en el gradiente lineal. La estructura es menos "dramáticamente no lineal" que con RBF.
+- **Polinomial grado 3:** la nube se alarga y deforma más que con grado 2, pero sin llegar al anillo del RBF. A mayor grado, el kernel puede volverse numéricamente inestable en escalas grandes (los productos punto elevados a potencias altas se disparan), por lo que usar `scale = 1` y `offset = 1` es importante para mantener los valores en rango razonable.
+
+**Conclusión de la comparación:** la estructura en anillo del RBF **no es un artefacto del kernel** — el polinomial no reproduce esa forma, lo que confirma que el RBF está capturando algo diferente: similitudes de tipo exponencial-gaussiano que son más sensibles a la cercanía puntual y producen representaciones no lineales más marcadas. Para los datos de café, donde las relaciones entre variables sensoriales son suaves y continuas, **el kernel RBF (especialmente con sigma = 0.05) es el que produce la representación más informativa** en términos de estructura no lineal visible.
+
 ---
 
 # 11. Matriz de dispersión de Kernel PCA

@@ -588,7 +588,7 @@ round(var_exp, 3)
 round(cumsum(var_exp), 3)
 ```
 
-Con `sigma = 0.05` y 5 features, la variabilidad se reparte de forma más uniforme que en PCA lineal (34.4%, 23.3%, 16.9%, 13.3%, 12.0%), sin un primer componente tan dominante como el PC1 lineal (47.6%). **Nota:** estos porcentajes están calculados solo sobre los 5 valores propios retenidos (no sobre el total del espacio de kernel), por lo que no son directamente comparables en magnitud absoluta con la varianza acumulada de PCA — sí lo son en términos de forma relativa entre componentes.
+Con `sigma = 0.05` y 5 features, la variabilidad se reparte de forma más uniforme que en PCA lineal (36.6%, 25.9%, 14.9%, 14.5%, 8.0%), sin un primer componente tan dominante como el PC1 lineal (47.6%). **Nota:** estos porcentajes están calculados solo sobre los 5 valores propios retenidos (no sobre el total del espacio de kernel), por lo que no son directamente comparables en magnitud absoluta con la varianza acumulada de PCA — sí lo son en términos de forma relativa entre componentes. Para una comparación justa, en la sección 10.4 se corre Kernel PCA con `features = 14` (igual al número de variables) y se compara la varianza acumulada con la de PCA lineal.
 
 ## 10.1. ¿Por qué `sigma = 0.05` y no el `0.1` del enunciado?
 
@@ -669,6 +669,31 @@ data.frame(
 - **Polinomial grado 3:** la nube se alarga y deforma más que con grado 2, pero sin llegar al anillo del RBF. A mayor grado, el kernel puede volverse numéricamente inestable en escalas grandes (los productos punto elevados a potencias altas se disparan), por lo que usar `scale = 1` y `offset = 1` es importante para mantener los valores en rango razonable.
 
 **Conclusión de la comparación:** la estructura en anillo del RBF **no es un artefacto del kernel** — el polinomial no reproduce esa forma, lo que confirma que el RBF está capturando algo diferente: similitudes de tipo exponencial-gaussiano que son más sensibles a la cercanía puntual y producen representaciones no lineales más marcadas. Para los datos de café, donde las relaciones entre variables sensoriales son suaves y continuas, **el kernel RBF (especialmente con sigma = 0.05) es el que produce la representación más informativa** en términos de estructura no lineal visible.
+
+## 10.4. Comparabilidad con PCA lineal: `features = 14`
+
+El parámetro `features` en `kpca()` es el número de vectores propios del kernel que se retienen — el equivalente al `k` de `prcomp`. Con `features = 5` solo se calcula la varianza sobre esas 5 componentes, por lo que los porcentajes se normalizan sobre un subconjunto y **no son directamente comparables con la varianza acumulada de PCA** (que parte de 14 componentes).
+
+Para igualar la base de comparación se corre Kernel PCA con `features = 14`:
+
+```{r kpca-features14}
+kp14 <- kpca(~., data = datos_esc,
+             kernel = "rbfdot",
+             kpar  = list(sigma = 0.05),
+             features = 14)
+
+eig14    <- kp14@eig
+var14    <- eig14 / sum(eig14)
+cumvar14 <- cumsum(var14)
+
+data.frame(
+  Componente = paste0("KPC", 1:14),
+  Var_prop   = round(var14, 3),
+  Var_acum   = round(cumvar14, 3)
+)
+```
+
+Con `features = 14`, la varianza acumulada de Kernel PCA (RBF, sigma = 0.05) se puede comparar directamente con la del PCA lineal. La diferencia esperada es que en PCA lineal las primeras 4 componentes acumulan el 74.6 %, mientras que en Kernel PCA el decrecimiento suele ser más gradual porque el kernel distribuye la varianza de forma más uniforme entre muchas dimensiones del espacio transformado. Esto no implica que Kernel PCA sea "peor": simplemente mide una varianza diferente (en el espacio del kernel, no en el espacio original).
 
 ---
 

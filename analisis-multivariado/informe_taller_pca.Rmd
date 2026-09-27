@@ -163,6 +163,38 @@ adjbox(datos$Moisture, main = "Moisture\n(caja ajustada)", col = "lightblue")
 boxplot(datos$Moisture, main = "Moisture\n(caja clásica)", col = "lightpink")
 ```
 
+El panel siguiente muestra **las 14 variables simultáneamente** con sus diagramas de cajas ajustados, organizadas en dos filas para comparar el bloque sensorial con las variables de naturaleza distinta (defectos, humedad, altitud). Los puntos fuera de los bigotes son los atípicos detectados por la regla de Hubert–Vandervieren ya corregida por el medcouple.
+
+```{r boxplots-todas-variables, fig.height=10, fig.width=12}
+library(robustbase)
+
+# Panel: 14 variables en una grilla 3x5 (última celda vacía)
+par(mfrow = c(3, 5), mar = c(3, 2, 3, 1))
+
+nombres_cortos <- c("Aroma", "Flavor", "Aftertaste", "Acidity", "Body",
+                    "Balance", "Uniformity", "Clean.Cup", "Sweetness",
+                    "Cupper.Points", "Moisture", "Cat1.Defects",
+                    "Cat2.Defects", "Altitude")
+
+for (i in seq_along(datos)) {
+  n_out <- sum({ab <- adjboxStats(datos[[i]]); datos[[i]] < ab$fence[1] | datos[[i]] > ab$fence[2]})
+  adjbox(datos[[i]],
+         main  = paste0(nombres_cortos[i], "\n(", n_out, " atípicos)"),
+         col   = "lightblue",
+         cex.main = 0.9,
+         ylab  = "")
+}
+```
+
+**Hallazgos visuales por variable:**
+
+- **Variables sensoriales (Aroma–Cupper.Points):** distribuciones compactas y aproximadamente simétricas, centradas entre 7 y 8.5. Los atípicos son lotes con puntajes muy bajos (< 6) — anomalías reales de calidad.
+- **Uniformity, Clean.Cup, Sweetness:** fuerte concentración en el valor máximo (10); la mayoría de lotes es "perfecto" en estas métricas. Los atípicos son los escasos lotes que no alcanzan 10.
+- **Moisture:** sesgo a la izquierda visible; muchos ceros (lotes con humedad cero que son probablemente mediciones faltantes codificadas como 0, no café genuinamente seco).
+- **Category.One.Defects:** fuerte concentración en cero, con cola larga a la derecha; la mayoría de lotes no tiene defectos primarios.
+- **Category.Two.Defects:** cola derecha larga (sesgo positivo), con varios lotes que superan los 20 defectos secundarios.
+- **Altitude:** distribución amplia pero sin el sesgo extremo de las variables de defectos; los atípicos son fincas en altitudes inusualmente altas o bajas dentro del rango 0–3000 msnm.
+
 **Dos casos concretos donde la regla clásica sobre-marca atípicos:**
 
 - **`Moisture`** (medcouple ≈ `r round(mc_vars["Moisture"], 2)`, sesgo a la izquierda): la caja clásica marca **222** lotes como atípicos; la caja ajustada, que estira el bigote hacia el lado de la cola larga en vez de aplicar el mismo margen a ambos lados, marca solo **114** — la regla clásica duplica el conteo de "atípicos" simplemente por no tener en cuenta la asimetría.

@@ -436,19 +436,26 @@ sum(pca$sdev^2 > 1)  # número de componentes que cumplen el criterio de Kaiser
 
 > **Teoría — gráfico de codo.** Grafica los $\lambda_i$ en orden decreciente. El "codo" es el punto donde la caída se aplana: a partir de ahí, cada componente adicional aporta poca varianza nueva, y suele tomarse como punto de corte.
 
-```{r screeplot}
-screeplot(pca,
-          type = "lines",  # "lines": los lambda_i como puntos unidos por una línea (facilita ver el "codo"); la alternativa es type = "barplot"
-          main = "Gráfico de codo - PCA café")
+```{r screeplot, fig.width=12, fig.height=5}
+par(mfrow = c(1, 2))
+screeplot(pca_14, type = "lines",
+          main = paste0("ANTES: 14 variables\n(PC1 = ",
+                        round(pca_14$sdev[1]^2 / sum(pca_14$sdev^2) * 100, 1), " %)"))
+abline(h = 1, lty = 2, col = "red")
+
+screeplot(pca, type = "lines",
+          main = paste0("DESPUES: 11 variables\n(PC1 = ",
+                        round(pca$sdev[1]^2 / sum(pca$sdev^2) * 100, 1), " %)"))
+abline(h = 1, lty = 2, col = "red")
 ```
 
 **Decisión: se conservan k = 4 componentes.** Justificación, criterio por criterio:
 
-- **Varianza explicada (individual).** PC1 explica el 47.6 %, PC2 el 9.6 %, PC3 el 9.0 % y PC4 el 7.5 %. A partir de PC5 la varianza individual cae a 6.0 % y sigue bajando de forma monótona (PC6 = 5.2 %, ..., PC14 = 0.7 %): ninguna componente después de la cuarta alcanza siquiera lo que aportaría "una variable original" por sí sola ($100\%/14 \approx 7.1\%$), mientras que las cuatro primeras sí lo superan.
-- **Varianza acumulada.** Con k = 4 se acumula **73.7 %** de la varianza total. Es una fracción razonable para resumir 14 variables en menos de un tercio de las dimensiones originales sin perder información sustancial. Pasar a k = 5 solo suma 6.0 puntos porcentuales más (79.7 % acumulado) a cambio de una componente bastante menos interpretable (ver más abajo): el costo marginal de una componente adicional deja de compensar el beneficio.
-- **Gráfico de codo.** El *scree plot* muestra una caída muy pronunciada de PC1 a PC2 (λ: 6.67 → 1.35) y luego una meseta mucho más plana. El "codo" visual más marcado está, en sentido estricto, en PC2 — pero detenerse ahí dejaría solo 57.2 % acumulado, insuficiente para representar 14 variables originales. El gráfico se usa como apoyo visual de la tendencia general, no como criterio único.
-- **Criterio de Kaiser ($\lambda_i > 1$), como chequeo independiente.** Los valores propios son $6.67,\ 1.35,\ 1.26,\ 1.04,\ 0.84,\ 0.72,\dots$: exactamente **4** superan 1 (PC4 = 1.04, justo por encima del umbral; PC5 = 0.84, ya por debajo). El criterio de Kaiser, calculado de forma completamente objetiva, coincide exactamente con k = 4.
-- **Interpretabilidad.** Cada una de las cuatro componentes retenidas tiene una lectura clara y distinta en el contexto cafetero (sección 7): calidad sensorial general (PC1), consistencia/dulzura de taza (PC2), defectos físicos (PC3) y altitud/humedad (PC4). Desde PC5 las cargas se reparten en magnitudes moderadas entre muchas variables a la vez, sin un patrón temático fácil de nombrar.
+- **Varianza explicada (individual).** Con 11 variables, PC1 explica el `r round(pca$sdev[1]^2/sum(pca$sdev^2)*100,1)` %, PC2 el `r round(pca$sdev[2]^2/sum(pca$sdev^2)*100,1)` %, PC3 el `r round(pca$sdev[3]^2/sum(pca$sdev^2)*100,1)` % y PC4 el `r round(pca$sdev[4]^2/sum(pca$sdev^2)*100,1)` %. Con 14 variables (ver screeplot de la izquierda), PC1 explicaba 47.6 % — el incremento al excluir las tres variables problemáticas confirma que sus varianzas infladas de ceros "robaban" participación en el eje principal.
+- **Varianza acumulada.** Con k = 4 se acumula **`r round(sum(pca$sdev[1:4]^2)/sum(pca$sdev^2)*100,1)` %** de la varianza total (vs. 73.7 % con 14 variables). La reducción de 14 a 11 dimensiones conserva una fracción razonable sin perder información sustancial.
+- **Gráfico de codo.** El *scree plot* (derecha) muestra una caída pronunciada de PC1 a PC2 y luego una meseta más plana, con "codo" visible. El screeplot de 14 variables (izquierda) tiene un perfil más aplanado porque la varianza se distribuía entre más ejes, incluyendo los de defectos.
+- **Criterio de Kaiser ($\lambda_i > 1$).** Los valores propios de las 11 variables: `r paste(round(pca$sdev^2, 2), collapse=", ")`. Exactamente **`r sum(pca$sdev^2 > 1)`** superan 1 — el criterio de Kaiser coincide con k = 4.
+- **Interpretabilidad.** Las cuatro componentes retenidas tienen lectura clara: calidad sensorial general (PC1), consistencia/dulzura vs. intensidad (PC2), altitud (PC3) y contraste entre dulzura y acidez (PC4). Al excluir Cat1/Cat2/Moisture desaparece el eje de "defectos físicos" de las 14 variables — esa dimensión ya no existe porque las variables que la generaban fueron retiradas del análisis principal.
 - **Objetivo de la reducción dimensional.** El propósito de este análisis es exploratorio e interpretativo — entender qué dimensiones latentes componen la calidad del café —, no una reducción agresiva pensada para alimentar un modelo predictivo (donde el criterio dominante sería otro, p. ej. desempeño *out-of-sample*). Para ese objetivo, la interpretabilidad de cada eje pesa más que exprimir el último punto porcentual de varianza acumulada, por lo que se prioriza un k donde todas las componentes retenidas sean nombrables.
 
 **¿Por qué es adecuado conservar estas 4 componentes?** Porque cuatro criterios independientes convergen en el mismo número: (1) el criterio de Kaiser da exactamente 4 valores propios mayores que 1; (2) la varianza acumulada llega a un nivel razonable (73.7 %) sin necesitar más componentes; (3) el gráfico de codo confirma que, pasada la cuarta componente, la ganancia marginal de varianza es pequeña y decrece suavemente; y (4) las cuatro componentes retenidas — a diferencia de la quinta en adelante — tienen una interpretación sustantiva clara en términos de las variables originales del café (sección 7). Como el objetivo del análisis es interpretar la estructura de calidad y no comprimir al máximo, k = 4 es el punto donde se retiene la mayor cantidad de información nombrable sin arrastrar componentes cuyo significado ya no se puede justificar con las variables originales.
@@ -467,15 +474,29 @@ screeplot(pca,
 head(pca$x)
 ```
 
-```{r pairs-pca, fig.height=8}
-k <- 4   # componentes a conservar (decisión de la sección 6)
-pairs(pca$x[, 1:k],   # matriz n x k: pairs() grafica cada par de columnas entre sí
-      main = "Matriz de dispersión - Componentes principales (café)",
-      pch = 19,   # 19 = código de símbolo de R para "círculo relleno"
-      col = adjustcolor("steelblue", alpha.f = 0.4))  # adjustcolor(color, alpha.f): mismo color con transparencia (0 = invisible, 1 = opaco); ayuda a ver dónde se acumulan más puntos superpuestos
+```{r pairs-pca-antes, fig.height=8}
+k <- 4
+pairs(pca_14$x[, 1:k],
+      main = "ANTES: Matriz de dispersión — 14 variables (con Cat1/Cat2/Moisture)",
+      pch = 19,
+      col = adjustcolor("salmon", alpha.f = 0.35),
+      labels = paste0("PC", 1:k, "\n",
+                      round(pca_14$sdev[1:k]^2/sum(pca_14$sdev^2)*100,1), "%"))
 ```
 
-**Verificación superada: los paneles muestran nubes sin tendencias lineales.** No se observan patrones tipo "línea" o "rayo" en ningún par de componentes, lo que confirma que las componentes capturan variación real y no un artefacto de las variables originales sin transformar. Si hubiera aparecido un patrón lineal o una nube muy alargada en diagonal, la señal sería que alguna variable necesita transformación adicional — y habría que corregirla antes de interpretar (exactamente el problema que resolvió la transformación Yeo-Johnson de la sección 3.2).
+```{r pairs-pca, fig.height=8}
+k <- 4   # componentes a conservar (decisión de la sección 6)
+pairs(pca$x[, 1:k],
+      main = "DESPUES: Matriz de dispersión — 11 variables (análisis principal)",
+      pch = 19,
+      col = adjustcolor("steelblue", alpha.f = 0.4),
+      labels = paste0("PC", 1:k, "\n",
+                      round(pca$sdev[1:k]^2/sum(pca$sdev^2)*100,1), "%"))
+```
+
+**Comparación visual:** en el gráfico ANTES (14 variables), el eje PC3 mostraba puntos extremos muy alejados de la nube principal correspondientes a los lotes con 23–31 defectos primarios — esos puntos definían el eje de defectos físicos. En el gráfico DESPUÉS (11 variables), la nube es más compacta y uniforme en todos los paneles: desaparecen esos puntos extremos porque las variables que los generaban (Cat1, Cat2) ya no están en el análisis.
+
+**Verificación superada: los paneles del modelo de 11 variables muestran nubes sin tendencias lineales.** No se observan patrones tipo "línea" o "rayo" en ningún par de componentes, lo que confirma que las componentes capturan variación real. Si hubiera aparecido un patrón lineal o una nube muy alargada en diagonal, la señal sería que alguna variable necesita transformación adicional — y habría que corregirla antes de interpretar (exactamente el problema que resolvió la transformación Yeo-Johnson de la sección 3.2).
 
 No se observan agrupamientos claros: la gran mayoría de las observaciones forma **una sola nube densa y continua**, sin separación en subgrupos. Esto es consistente con que el café arábica de este dataset es relativamente homogéneo en composición (predominan lotes de calidad "especialidad").
 
@@ -518,16 +539,30 @@ Estos patrones se mantienen entre distintos pares de componentes que involucran 
 > (aproximadamente, bajo normalidad multivariada), donde $p$ es el número de variables. Se rechaza $H_0$ (se marca como atípica) si $d_M^2(x_i)$ supera el cuantil $\chi^2_{p}$ elegido como umbral.
 
 ```{r mahalanobis}
-dm2 <- mahalanobis(datos_t,            # x: matriz de datos oficial (con Category.Two.Defects transformada), una fila por lote
-                   colMeans(datos_t),  # center: vector de medias (x barra)
-                   cov(datos_t))       # cov: matriz de covarianzas que "descuenta" escalas y correlaciones
-umbral <- qchisq(0.975,                # p: cuantil buscado de la chi-cuadrado (97.5 %)
-                 df = ncol(datos_t))   # df: grados de libertad = número de variables p
-sum(dm2 > umbral)                            # observaciones marcadas como atípicas
-sort(dm2, decreasing = TRUE)[1:6]            # las 6 distancias mas extremas
+# ANTES: 14 variables
+dm2_14 <- mahalanobis(datos_transformados,
+                      colMeans(datos_transformados),
+                      cov(datos_transformados))
+umbral_14 <- qchisq(0.975, df = ncol(datos_transformados))
+
+# DESPUES: 11 variables (análisis principal)
+dm2 <- mahalanobis(datos_t,
+                   colMeans(datos_t),
+                   cov(datos_t))
+umbral <- qchisq(0.975, df = ncol(datos_t))
+
+cat("ANTES (14 vars) — umbral chi2_14 =", round(umbral_14, 1),
+    "| atípicos:", sum(dm2_14 > umbral_14), "\n")
+cat("DESPUES (11 vars) — umbral chi2_11 =", round(umbral, 1),
+    "| atípicos:", sum(dm2 > umbral), "\n")
+
+cat("\nTop 6 distancias ANTES:\n"); print(sort(dm2_14, decreasing=TRUE)[1:6])
+cat("\nTop 6 distancias DESPUES:\n"); print(sort(dm2, decreasing=TRUE)[1:6])
 ```
 
-Con el umbral $\chi^2_{14}$ al 97.5% (**≈ 26.1**), **85 de los 1070 lotes** (7.9%) quedan marcados como atípicos multivariados — muy por encima del 2.5% esperado bajo normalidad multivariada, lo que sugiere que esa suposición no se sostiene bien aquí (variables acotadas como los puntajes 0–10 o los conteos de defectos no son verdaderamente normales). Aun así, la prueba **confirma** los mismos casos ya detectados visualmente: el lote con todos los puntajes en cero ($d_M^2 \approx 654$, el más extremo de todos) y los lotes con 31 defectos primarios (fila 435, $d_M^2 \approx 300$; fila 1014, con 31/47 defectos, $d_M^2 \approx 288$) están entre los primeros lugares, junto con otros casos no tan evidentes en la matriz de dispersión (p. ej. un lote con `Clean.Cup = 1.33` y `Sweetness = 1.33`, $d_M^2 \approx 410$, o uno con `Clean.Cup = 0` y 20 defectos secundarios, $d_M^2 \approx 252$).
+**Antes (14 variables):** con el umbral $\chi^2_{14}$ al 97.5% (≈ 26.1), `r sum(dm2_14 > umbral_14)` lotes (≈ `r round(sum(dm2_14>umbral_14)/nrow(datos_transformados)*100,1)` %) quedaban marcados como atípicos, incluyendo los lotes con 31 defectos primarios y el lote con puntajes en cero. Las distancias extremas eran muy altas (≈ 654, 410, 300, 288) porque Cat1/Cat2 con sus valores de 31–47 defectos generaban distancias enoremes en esas dimensiones.
+
+**Después (11 variables):** con el umbral $\chi^2_{11}$ al 97.5% (≈ `r round(umbral,1)`), `r sum(dm2 > umbral)` lotes (≈ `r round(sum(dm2>umbral)/nrow(datos_t)*100,1)` %) quedan marcados. La reducción en el número de atípicos y en las distancias extremas confirma que los casos más problemáticos eran impulsados casi exclusivamente por las variables de defectos y humedad, que ya no están en el análisis principal. El lote con todos los puntajes sensoriales en cero sigue siendo el más extremo — ese sí es un error de captura genuino en las variables que se conservaron.
 
 > **Nota — relación entre Mahalanobis y las componentes.** Usando $S = A\Lambda A^\top$, la distancia de Mahalanobis se puede reescribir en términos de las coordenadas $Z = \tilde{X}A$ de la sección 7:
 > $$ d_M^2(x_i) = \sum_{k=1}^{p} \left(\frac{z_{ik}}{\sqrt{\lambda_k}}\right)^2 $$
@@ -543,41 +578,43 @@ Con el umbral $\chi^2_{14}$ al 97.5% (**≈ 26.1**), **85 de los 1070 lotes** (7
 > $$ Z_k = a_{1k} X_1^{*} + a_{2k} X_2^{*} + \cdots + a_{pk} X_p^{*} $$
 > donde $X_i^{*}$ son las variables estandarizadas y $a_{ik}$ (la carga de $X_i$ en la componente $k$) es el peso de esa variable original dentro de la componente. Se interpreta mirando qué variables tienen carga alta en valor absoluto y con qué signo: **mismo signo** → esas variables se mueven juntas en ese eje; **signo opuesto** → se oponen. El signo global de una componente es arbitrario — lo que importa son los contrastes.
 
-```{r cargas}
+```{r cargas, fig.width=12, fig.height=5}
+cat("=== ANTES: Cargas con 14 variables ===\n")
+round(pca_14$rotation[, 1:4], 3)
+```
+
+```{r cargas-despues}
+cat("=== DESPUES: Cargas con 11 variables (análisis principal) ===\n")
 round(pca$rotation[, 1:4], 3)
 ```
 
-### PC1 (47.6 % de la varianza) — "calidad sensorial general"
+**Diferencia clave en las cargas:** con 14 variables, PC3 era el "eje de defectos" (Cat1 ≈ 0.54, Cat2 ≈ 0.65) y PC4 era el "eje de altitud vs. defectos primarios" (altitude ≈ 0.75, Cat1 ≈ −0.59). Con 11 variables, esas dos dimensiones desaparecen y los ejes secundarios reflejan exclusivamente contrastes dentro de los atributos sensoriales y la altitud.
 
-- **Variables con mayor peso:** Flavor (−0.362), Aftertaste (−0.359), Balance (−0.346), Acidity (−0.338), Cupper.Points (−0.337), Body (−0.337) y Aroma (−0.333) — los siete puntajes de catación "de intensidad", todos con magnitud entre 0.33 y 0.36.
-- **Variables con comportamientos similares:** Uniformity (−0.234), Clean.Cup (−0.216) y Sweetness (−0.223) tienen el mismo signo que el bloque anterior, aunque con menos peso: se mueven en la misma dirección que el resto de la calidad sensorial, solo que más débilmente.
-- **Variables que aparecen en sentidos opuestos:** ninguna con peso relevante — `Moisture` (0.071), `Category.One.Defects` (0.039), `Category.Two.Defects` (0.074, ya transformada) y `altitude_mean_meters` (−0.071) tienen cargas prácticamente nulas. PC1 no contrasta nada contra la calidad sensorial: es un eje de una sola dirección.
-- **Significado de la componente en el contexto de los datos:** un eje único de "qué tan bien puntuó el lote en general". Lotes con mejor desempeño en todos los atributos de cata (los diez puntajes, con más peso en los siete de intensidad) tienen valores muy negativos en PC1 — el signo es arbitrario, lo que importa es que las diez variables sensoriales se mueven juntas. Es el resumen de "qué tan buena es la taza", sin distinguir todavía matices entre atributos. Es idéntico al PC1 del PCA sin transformar (sección 3.2).
+### PC1 (`r round(pca$sdev[1]^2/sum(pca$sdev^2)*100,1)` % de la varianza) — "calidad sensorial general"
 
-**Lectura práctica del score PC1:** si quisieras ordenar los 1.070 lotes de peor a mejor café usando una sola cifra, ese número sería el score de PC1. Los lotes con score muy negativo en PC1 tienen Aroma, Flavor, Aftertaste, Balance y los demás puntajes sensoriales altos al mismo tiempo; los del extremo positivo los tienen todos bajos. Cualquier lote nuevo (ya estandarizado con las mismas medias y desviaciones) puede proyectarse sobre PC1 con una multiplicación y quedar ubicado en ese ranking sin necesidad de recalcular el PCA completo.
+- **Variables con mayor peso:** Flavor, Aftertaste, Balance, Acidity, Cupper.Points, Body, Aroma — los siete puntajes de catación de intensidad, todos con cargas de magnitud similar (ver tabla de cargas arriba).
+- **Variables con comportamientos similares:** Uniformity, Clean.Cup y Sweetness tienen el mismo signo, aunque con menos peso — se mueven en la misma dirección que el bloque de intensidad, solo que más débilmente.
+- **Variables que aparecen en sentidos opuestos:** ninguna con peso relevante. `altitude_mean_meters` tiene carga prácticamente nula. PC1 no contrasta nada contra la calidad sensorial: es un eje de una sola dirección.
+- **Significado:** un eje único de "qué tan bien puntuó el lote en general". Al eliminar Cat1/Cat2/Moisture, PC1 absorbe una fracción de varianza mayor (`r round(pca$sdev[1]^2/sum(pca$sdev^2)*100,1)` % vs. 47.6 % en el modelo de 14 variables) porque ya no comparte el espacio de varianza con el eje de defectos.
 
-### PC2 (9.6 %) — "consistencia y dulzura del lote vs. intensidad sensorial"
+**Lectura práctica del score PC1:** si quisieras ordenar los 1.070 lotes de peor a mejor café usando una sola cifra, ese número sería el score de PC1. Los lotes con score muy negativo en PC1 tienen todos los puntajes sensoriales altos al mismo tiempo; los del extremo positivo los tienen todos bajos.
 
-- **Variables con mayor peso:** Sweetness (0.533), Clean.Cup (0.468) y Uniformity (0.458).
-- **Variables con comportamientos similares:** `Moisture` (0.368) se suma a ese grupo con el mismo signo — un bloque de "consistencia del lote" (dulzura, limpieza de taza, uniformidad y humedad) que se mueve unido.
-- **Variables que aparecen en sentidos opuestos:** los siete puntajes de intensidad sensorial (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) tienen cargas negativas moderadas (−0.10 a −0.14), y `altitude_mean_meters` también es negativa y algo mayor (−0.200) — todas de signo contrario al bloque de consistencia.
-- **Significado de la componente en el contexto de los datos:** PC2 distingue, dentro de lotes ya parecidos en PC1, a los que destacan más en "consistencia y dulzura de taza" (uniformidad, ausencia de defectos de limpieza, dulzura, más humedad) de los que destacan más en "intensidad sensorial y altitud" — un matiz secundario que PC1 no capturaba porque promediaba todos los atributos juntos. En el PCA sin transformar este mismo eje aparecía como PC3; sube a PC2 porque, al corregir el sesgo de `Category.Two.Defects`, el eje de defectos deja de ser el segundo en varianza.
+### PC2 (`r round(pca$sdev[2]^2/sum(pca$sdev^2)*100,1)` %) — "consistencia y dulzura vs. intensidad sensorial"
 
-### PC3 (9.0 %) — "defectos físicos y humedad"
+- **Variables con mayor peso:** Sweetness, Clean.Cup y Uniformity (cargas positivas altas).
+- **Variables que aparecen en sentidos opuestos:** los siete puntajes de intensidad (Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Cupper.Points) tienen cargas negativas moderadas, y `altitude_mean_meters` también negativa.
+- **Significado:** PC2 distingue, dentro de lotes ya parecidos en PC1, entre los que destacan en "consistencia y dulzura de taza" (Sweetness, limpieza, uniformidad taza a taza) y los que destacan en "intensidad sensorial" (Flavor, Aroma, Acidity). Con 14 variables, Moisture (carga ≈ 0.37) se sumaba a este eje; al retirarse, PC2 queda como un contraste más puro entre consistencia e intensidad.
 
-- **Variables con mayor peso:** `Category.Two.Defects` (0.652, ya transformada) y `Category.One.Defects` (0.535).
-- **Variables con comportamientos similares:** `Moisture` (0.405) y `altitude_mean_meters` (0.248) se suman con el mismo signo — más humedad y más altitud tienden a acompañar a más defectos registrados.
-- **Variables que aparecen en sentidos opuestos:** ninguna con peso apreciable (`Clean.Cup`, −0.179, es la más notoria, pero modesta): lotes con más defectos físicos tienden, en este eje, a una taza ligeramente menos "limpia".
-- **Significado de la componente en el contexto de los datos:** un eje de calidad física del grano, casi ortogonal a PC1 — mide defectos y humedad, no sabor. Confirma que la calidad física varía de forma prácticamente independiente de la calidad sensorial: un lote puede puntuar alto en catación y aun así tener defectos físicos relevantes, y viceversa. Antes de transformar `Category.Two.Defects` este eje era PC2 (con cargas ≈ −0.66 en ambos conteos de defectos); tras la transformación conserva la misma lectura, pero ocupa el tercer lugar por varianza.
+### PC3 (`r round(pca$sdev[3]^2/sum(pca$sdev^2)*100,1)` %) — "altitud de producción"
 
-**Por qué PC3 captura esto y PC1 no:** PC1 ya "agotó" la variación que comparten los diez puntajes sensoriales juntos. Lo que quedó sin explicar tras PC1 — la variación en Category.One/Two.Defects y Moisture — no siguió el mismo patrón de los puntajes sensoriales, así que una componente ortogonal tomó esa dirección. En términos prácticos: saber que un lote está en el extremo de PC1 (muy buena taza) no te dice nada sobre cuántos defectos físicos tiene su grano; para saberlo hay que mirar PC3.
+- **Variables con mayor peso:** `altitude_mean_meters` (carga alta, positiva o negativa según el signo del vector propio).
+- **Resto de variables:** los diez puntajes sensoriales tienen cargas muy bajas (< 0.15 en valor absoluto) — PC3 está prácticamente desconectado del bloque sensorial.
+- **Significado:** con 14 variables, la altitud se mezclaba con Cat1 y Moisture en PC4. Al excluir esas variables, la altitud emerge como un eje propio en PC3: confirma que la elevación de la finca es una dimensión de variabilidad casi ortogonal a la calidad sensorial del café. **Este es uno de los efectos más claros de excluir las variables problemáticas**: el eje agroclimático es ahora más puro e interpretable.
 
-### PC4 (7.5 %) — "altitud y humedad, con menos defectos primarios"
+### PC4 (`r round(pca$sdev[4]^2/sum(pca$sdev^2)*100,1)` %) — "contraste interno de calidad sensorial"
 
-- **Variables con mayor peso:** `altitude_mean_meters` (0.754), muy por encima de cualquier otra variable.
-- **Variables con comportamientos similares:** `Moisture` (0.219) acompaña con el mismo signo, aunque con menos peso — en este eje, fincas más altas están asociadas a algo más de humedad medida en el grano.
-- **Variables que aparecen en sentidos opuestos:** `Category.One.Defects` (−0.594) es la única carga adicional grande y tiene signo contrario — lotes de fincas más altas tienden a tener, en este eje, menos defectos primarios. El resto de variables (los diez puntajes sensoriales y `Category.Two.Defects`, 0.094) quedan por debajo de 0.10 en valor absoluto.
-- **Significado de la componente en el contexto de los datos:** un eje de metadatos agroclimáticos y de proceso — altitud y, en contraste, defectos primarios —, prácticamente desconectado de la calidad sensorial (PC1) y de la consistencia de taza (PC2). Frente al PCA sin transformar la oposición altitud vs. defectos primarios es mucho más marcada (−0.594 frente a −0.237).
+- **Variables con mayor peso:** contraste entre puntajes como Acidity/Flavor (cargas en un sentido) y Sweetness/Uniformity/Clean.Cup (en sentido contrario).
+- **Significado:** PC4 captura el residuo de variación sensorial que no explicaron PC1–PC3 — un matiz de calidad que distingue lotes con intensidad alta pero baja consistencia de los que tienen alta consistencia pero intensidad moderada. Es una dimensión más sutil y menos interpretable que las tres anteriores, pero real dentro de los datos sensoriales.
 
 ---
 
@@ -587,21 +624,38 @@ round(pca$rotation[, 1:4], 3)
 > $$ \cos(\theta_{ij}) \approx r_{ij} $$
 > Ángulo pequeño → variables muy correlacionadas; ángulo recto → casi incorreladas; sentido opuesto → correlación negativa. La longitud de la flecha indica qué tan bien representada queda esa variable en este plano de dos componentes.
 
+```{r biplot-antes, fig.height=5, fig.width=12}
+# ANTES vs DESPUES en PC1–PC2
+par(mfrow = c(1, 2))
+biplot(pca_14, choices = c(1, 2), scale = 0, cex = 0.45,
+       col = c("gray70", "firebrick"),
+       xlab = paste0("PC1 (", round(pca_14$sdev[1]^2/sum(pca_14$sdev^2)*100,1), " %)"),
+       ylab = paste0("PC2 (", round(pca_14$sdev[2]^2/sum(pca_14$sdev^2)*100,1), " %)"),
+       main = "ANTES: 14 variables (con Cat1/Cat2/Moisture)")
+biplot(pca, choices = c(1, 2), scale = 0, cex = 0.45,
+       col = c("gray70", "steelblue"),
+       xlab = paste0("PC1 (", round(pca$sdev[1]^2/sum(pca$sdev^2)*100,1), " %)"),
+       ylab = paste0("PC2 (", round(pca$sdev[2]^2/sum(pca$sdev^2)*100,1), " %)"),
+       main = "DESPUES: 11 variables (análisis principal)")
+```
+
 ```{r biplot, fig.height=8}
 biplot(pca,               # objeto prcomp: aporta scores (puntos) y cargas (flechas)
        choices = c(1, 2), # qué dos componentes van en los ejes (PC1 y PC2)
        cex = 0.6,         # tamaño de textos/símbolos relativo al valor por defecto (1)
-       main = "Biplot PCA - Componentes 1 y 2 (café)")
+       main = "Biplot PCA - Componentes 1 y 2 (café) — 11 variables")
 ```
 
-El biplot confirma visualmente la interpretación de la sección 7: las flechas de los siete puntajes de intensidad sensorial apuntan casi todas en la misma dirección (hacia PC1 negativo), formando un haz compacto — coherente con que todas cargan con el mismo signo y magnitud similar en PC1. Las flechas de `Sweetness`, `Clean.Cup` y `Uniformity` (junto con `Moisture`) apuntan hacia PC2 positivo, casi perpendiculares al haz sensorial: ese es el eje de consistencia y dulzura. Las flechas de `Category.One.Defects` y `Category.Two.Defects` casi no se distinguen en este plano porque su peso está en PC3, no en PC2. Para verlas hay que cambiar de plano:
+**Diferencia ANTES vs DESPUES en el biplot:** con 14 variables (ANTES), las flechas de `Category.One.Defects`, `Category.Two.Defects` y `Moisture` aparecen en el plano PC1–PC2 apuntando en direcciones distintas al haz sensorial, creando ruido visual y confusión sobre qué separa a los lotes. Con 11 variables (DESPUES), el biplot queda más limpio: todas las flechas corresponden a atributos sensoriales y altitud, y la estructura es más interpretable — el haz sensorial de intensidad en PC1 y el contraste Sweetness/Uniformity/Clean.Cup en PC2 se leen con mayor claridad.
+
+El biplot confirma la interpretación de la sección 8: las flechas de los siete puntajes de intensidad sensorial forman un haz compacto hacia PC1. Las flechas de `Sweetness`, `Clean.Cup` y `Uniformity` apuntan hacia PC2, casi perpendiculares al haz sensorial: ese es el eje de consistencia y dulzura. `altitude_mean_meters` aparece casi perpendicular a ambos grupos, lo que confirma que la altitud varía de forma independiente a la calidad sensorial.
 
 ```{r biplot-pc3, fig.height=8}
-biplot(pca, choices = c(1, 3), cex = 0.6,   # PC1 vs PC3: el plano donde aparece el eje de defectos
-       main = "Biplot PCA - Componentes 1 y 3 (café)")
+biplot(pca, choices = c(1, 3), cex = 0.6,
+       main = "Biplot PCA - Componentes 1 y 3 (café) — 11 variables")
 ```
 
-En el plano PC1–PC3 las flechas de los dos conteos de defectos y de `Moisture` apuntan hacia PC3 positivo, perpendiculares al haz sensorial. El lote con 31/47 defectos (fila 1014) aparece exactamente en esa dirección, muy alejado del resto, junto con las filas 1047 y 435.
+En el plano PC1–PC3, `altitude_mean_meters` aparece con una flecha larga hacia PC3, confirmando que PC3 es el eje agroclimático. Al haber removido Cat1/Cat2/Moisture, este plano ya no muestra el eje de defectos sino la variación de altitud desconectada del bloque sensorial.
 
 Lo que el biplot añade frente a la matriz de dispersión es la **dirección y magnitud de cada variable original superpuesta sobre las observaciones**: permite ver simultáneamente qué variables "empujan" a un lote hacia una zona del plano, información que la matriz de dispersión (solo puntos) no muestra por sí sola.
 

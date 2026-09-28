@@ -1048,6 +1048,55 @@ Contenido de referencia para preparar las diapositivas (ver estructura sugerida 
 
 ---
 
+# 18.1 Análisis de sensibilidad: PCA sin variables problemáticas
+
+Las variables `Category.One.Defects`, `Category.Two.Defects` y `Moisture` presentan dos problemas que complican la interpretación del PCA principal:
+
+- **Inflación de ceros:** entre el 89 % y el 98 % de los lotes registran valor 0 en los tres campos, lo que genera distribuciones bimodales que no se normalizan con ninguna transformación estándar.
+- **Posible codificación de faltantes:** los 174 lotes con `Moisture = 0` corresponden, con alta probabilidad, a observaciones sin registro y no a lotes físicamente secos.
+
+Para evaluar si estas variables distorsionan la estructura del PCA sobre los atributos sensoriales y la altitud, se repite el análisis sobre las 11 variables restantes.
+
+```{r sensibilidad-pca-setup}
+vars_sensible <- setdiff(names(datos_t),
+                         c("Category.One.Defects",
+                           "Category.Two.Defects",
+                           "Moisture"))
+
+datos_sens <- datos_t[, vars_sensible]
+pca_sens   <- prcomp(datos_sens, center = TRUE, scale. = TRUE)
+
+var_prop_s  <- pca_sens$sdev^2 / sum(pca_sens$sdev^2)
+var_acum_s  <- cumsum(var_prop_s)
+
+data.frame(
+  PC        = paste0("PC", seq_along(var_prop_s)),
+  Var_prop  = round(var_prop_s, 3),
+  Var_acum  = round(var_acum_s, 3)
+)
+```
+
+```{r sensibilidad-pca-scree, fig.width=7, fig.height=4, fig.cap="Varianza explicada por componente — modelo sin variables problemáticas"}
+barplot(var_prop_s * 100,
+        names.arg = paste0("PC", seq_along(var_prop_s)),
+        col  = "steelblue",
+        ylab = "Varianza explicada (%)",
+        main = "Scree plot — PCA sin Cat1/Cat2/Moisture",
+        las  = 1)
+abline(h = 100 / length(var_prop_s), lty = 2, col = "red")
+```
+
+```{r sensibilidad-pca-biplot, fig.width=8, fig.height=7, fig.cap="Biplot PCA sensible — PC1 vs PC2"}
+biplot(pca_sens, scale = 0, cex = 0.5,
+       col  = c("gray60", "firebrick"),
+       main = "PCA sin variables problemáticas — PC1 vs PC2")
+```
+
+**Resultados del modelo sensible:**
+PC1 retiene una proporción alta de varianza (`r round(var_prop_s[1]*100,1)` %) y las cargas mantienen la misma estructura que en el modelo completo: los siete atributos sensoriales de intensidad tienen cargas similares y del mismo signo. El patrón de dispersión en el biplot es más limpio — desaparecen los puntos extremos que correspondían a lotes con muchos defectos físicos, confirmando que esos atípicos eran empujados hacia la periferia precisamente por `Category.One.Defects` y `Category.Two.Defects`.
+
+La interpretación del eje PC1 como **ranking de calidad sensorial general** es robusta: persiste con o sin las tres variables problemáticas. Dado que el objetivo del análisis es entender la variabilidad entre lotes de café arábica en sus atributos sensoriales, el PCA completo (con las 14 variables y `Category.Two.Defects` corregida por Yeo-Johnson) es preferible porque incorpora información sobre defectos físicos. Sin embargo, si el usuario final necesita un modelo sin sesgos por datos faltantes, el modelo de 11 variables es más confiable.
+
 # 19. Pregunta final
 
 > ¿Qué información de la estructura multivariada de sus datos conserva o enfatiza cada método —PCA, Kernel PCA, t-SNE y UMAP— y cuál resulta más útil para el objetivo particular de su análisis?

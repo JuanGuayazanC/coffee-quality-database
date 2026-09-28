@@ -352,16 +352,36 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 
 El taller aclara que **no es necesario** construir `Z <- scale(X)` por separado antes de llamar a `prcomp()` — basta con `scale. = TRUE`. Aun así, se construye explícitamente para dejar a la vista qué es "estandarizar" y para verificar que coincide con lo que hace `prcomp` internamente:
 
-Antes de estandarizar se fija el conjunto oficial `datos_t`. La investigación de la sección 3.2 mostró que `Category.One.Defects`, `Category.Two.Defects` y `Moisture` no se pueden normalizar satisfactoriamente (inflación de ceros, posibles faltantes codificados como 0). El análisis de sensibilidad de la sección 18.1 confirmó que el hallazgo principal (eje de calidad sensorial) es **robusto** con o sin esas variables. Por lo tanto, el análisis principal usa las **11 variables restantes** para obtener una nube de dispersión más limpia e interpretaciones de PC más puras, y la sección 18.1 conserva la evidencia de cómo lucía el análisis con las 14 variables.
+Antes de estandarizar se fija el conjunto oficial `datos_t`. La investigación de la sección 3.2 mostró que `Category.One.Defects`, `Category.Two.Defects` y `Moisture` no se pueden normalizar satisfactoriamente (inflación de ceros, posibles faltantes codificados como 0). El análisis de sensibilidad de la sección 18.1 confirmó que el hallazgo principal (eje de calidad sensorial) es **robusto** con o sin esas variables. Por lo tanto, el análisis principal usa las **11 variables restantes** y les aplica una **transformación Yeo-Johnson individual** (lambda óptimo estimado por `car::powerTransform`) para reducir el sesgo de cada variable antes de correr PCA — esto atiende directamente el problema de outliers y patrones no elípticos en la matriz de dispersión de scores.
 
 ```{r datos-oficiales}
 # Análisis principal: 11 variables (sin Category.One.Defects, Category.Two.Defects, Moisture)
-# Razón: las tres variables tienen inflación de ceros que no se corrige con transformaciones de potencia
-# (ver sección 3.2) y el análisis de sensibilidad (sección 18.1) muestra que su exclusión
-# no cambia la interpretación del eje principal de calidad sensorial.
 vars_11 <- setdiff(names(datos_transformados),
                    c("Category.One.Defects", "Category.Two.Defects", "Moisture"))
 datos_t <- datos_transformados[, vars_11]   # 11 variables: 10 sensoriales + altitude_mean_meters
+```
+
+```{r yj-todas-variables}
+# Yeo-Johnson a las 11 variables: estima lambda óptimo por variable y aplica la transformación
+library(car)
+datos_t_sin_yj <- datos_t   # guardar original para comparación de skewness
+pt_11 <- powerTransform(datos_t, family = "yjPower")
+lambdas_11 <- coef(pt_11, round = FALSE)
+cat("Lambdas Yeo-Johnson estimados por variable:\n")
+print(round(lambdas_11, 3))
+
+# Aplicar YJ variable por variable con yjPower
+datos_t_yj <- datos_t
+for (v in names(datos_t)) {
+  datos_t_yj[[v]] <- yjPower(datos_t[[v]], lambdas_11[v])
+}
+datos_t <- datos_t_yj
+
+skew <- function(x) mean((x - mean(x))^3) / sd(x)^3
+cat("\nSkewness ANTES de YJ:\n")
+print(round(sapply(datos_t_sin_yj, skew), 3))
+cat("\nSkewness DESPUES de YJ:\n")
+print(round(sapply(datos_t, skew), 3))
 ```
 
 ```{r antes-despues-comparacion, fig.width=12, fig.height=5, fig.cap="Comparación del primer plano PCA: 14 variables (izquierda) vs. 11 variables sin problemas de ceros (derecha)"}
@@ -545,10 +565,11 @@ dm2_14 <- mahalanobis(datos_transformados,
                       cov(datos_transformados))
 umbral_14 <- qchisq(0.975, df = ncol(datos_transformados))
 
-# DESPUES: 11 variables (análisis principal)
-dm2 <- mahalanobis(datos_t,
-                   colMeans(datos_t),
-                   cov(datos_t))
+# DESPUES: 11 variables YJ
+# La transformación YJ genera alta colinealidad entre variables sensoriales (covarianza casi singular).
+# Se usa la equivalencia PCA–Mahalanobis: d²_M = sum_k (z_ik / sdev_k)²
+# (ver nota teórica abajo), que evita invertir S directamente.
+dm2 <- rowSums((pca$x / pca$sdev)^2)
 umbral <- qchisq(0.975, df = ncol(datos_t))
 
 cat("ANTES (14 vars) — umbral chi2_14 =", round(umbral_14, 1),

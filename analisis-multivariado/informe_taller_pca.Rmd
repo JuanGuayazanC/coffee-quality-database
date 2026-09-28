@@ -343,20 +343,46 @@ Las versiones **promedio** (dividir por `p`, o tomar la raíz `p`-ésima) son me
 
 # 5. Análisis de Componentes Principales
 
-**Decisión: ESTANDARIZAR** las variables antes de aplicar PCA (`prcomp(datos_t, center = TRUE, scale. = TRUE)`, donde `datos_t` es el conjunto con `Category.Two.Defects` transformada según la sección 3.2), es decir, diagonalizar $R$ en vez de $S$. La justificación, punto por punto:
+**Decisión: ESTANDARIZAR** las variables antes de aplicar PCA (`prcomp(datos_t, center = TRUE, scale. = TRUE)`, donde `datos_t` es el conjunto de **11 variables** definido en el bloque anterior), es decir, diagonalizar $R$ en vez de $S$. La justificación, punto por punto:
 
-- **Unidades de medición.** Las 14 variables no comparten una unidad común (las magnitudes de esta lista y de las siguientes se refieren a las variables en su escala original, tal como se midieron): `altitude_mean_meters` está en metros, los diez puntajes de catación están en una escala de 0 a 10, `Moisture` es una proporción (0 a 1) y `Category.One.Defects`/`Category.Two.Defects` son conteos de defectos. $S$ (sección 4) mezcla en la misma matriz metros², puntos² y conteos² — magnitudes que no son comparables entre sí, solo tienen sentido dentro de la unidad original de cada variable.
-- **Diferencias de escala.** El rango de `altitude_mean_meters` va de 0 a 2559 m, frente a 8.6–10 en los puntajes sensoriales, 0–0.20 en `Moisture` y 0–47 en `Category.Two.Defects`: cuatro órdenes de magnitud entre la variable de rango más amplio y la más angosta.
-- **Diferencias de varianza.** Esa diferencia de escala se traduce directamente en la diagonal de $S$: $\operatorname{Var}(\texttt{altitude\_mean\_meters}) \approx 174\,656$, frente a $0.13$–$0.63$ en los puntajes sensoriales, $3.5$–$27.9$ en los defectos y apenas $0.002$ en `Moisture` — hasta ocho órdenes de magnitud de diferencia entre varianzas individuales. Por eso `altitude_mean_meters`, ella sola, explica el **99.98 %** de la varianza total calculada en la sección 4.1: no porque sea la variable más relevante, sino porque su unidad (metros) produce números mucho más grandes.
+- **Unidades de medición.** Las 11 variables no comparten una unidad común: `altitude_mean_meters` está en metros y los diez puntajes de catación están en una escala de 0 a 10. $S$ mezcla metros² con puntos² — magnitudes no comparables entre sí.
+- **Diferencias de escala.** El rango de `altitude_mean_meters` va de 0 a 2559 m, frente a 8.6–10 en los puntajes sensoriales: cuatro órdenes de magnitud entre la variable de rango más amplio y la más angosta.
+- **Diferencias de varianza.** Esa diferencia de escala se traduce directamente en la diagonal de $S$: $\operatorname{Var}(\texttt{altitude\_mean\_meters}) \approx 174\,656$, frente a $0.13$–$0.63$ en los puntajes sensoriales — hasta ocho órdenes de magnitud de diferencia. Por eso `altitude_mean_meters`, ella sola, explica el **99.98 %** de la varianza total calculada en la sección 4.1 (análisis de 14 variables): no porque sea la variable más relevante, sino porque su unidad (metros) produce números mucho más grandes.
 - **Objetivo del análisis.** El objetivo es entender la estructura conjunta de la calidad del café — el bloque sensorial, los defectos físicos y la altitud/humedad — dándole a cada dimensión un peso comparable a priori, no dejar que el resultado dependa de qué unidad arbitraria se usó para medir cada variable. Una prueba directa de que el resultado sin estandarizar sería un artefacto: si `altitude_mean_meters` se hubiera registrado en kilómetros en vez de metros, su varianza caería por un factor de $10^6$ y PCA sobre $S$ dejaría de estar dominado por la altitud — sin que nada real en los datos hubiera cambiado. Eso confirma que "PC1 = altitud" no sería un hallazgo genuino sino un accidente de unidades, y es la razón de fondo para estandarizar: solo así cada variable aporta la misma varianza (= 1) de entrada, y PCA queda libre para encontrar la covariación real entre calidad sensorial, defectos y altitud — que es lo que el análisis busca — en vez de limitarse a redescubrir en qué unidad se midió cada cosa.
 
 El taller aclara que **no es necesario** construir `Z <- scale(X)` por separado antes de llamar a `prcomp()` — basta con `scale. = TRUE`. Aun así, se construye explícitamente para dejar a la vista qué es "estandarizar" y para verificar que coincide con lo que hace `prcomp` internamente:
 
-Antes de estandarizar se fija el conjunto oficial `datos_t`: las 14 variables originales, con `Category.Two.Defects` sustituida por su versión de Yeo-Johnson (sección 3.2).
+Antes de estandarizar se fija el conjunto oficial `datos_t`. La investigación de la sección 3.2 mostró que `Category.One.Defects`, `Category.Two.Defects` y `Moisture` no se pueden normalizar satisfactoriamente (inflación de ceros, posibles faltantes codificados como 0). El análisis de sensibilidad de la sección 18.1 confirmó que el hallazgo principal (eje de calidad sensorial) es **robusto** con o sin esas variables. Por lo tanto, el análisis principal usa las **11 variables restantes** para obtener una nube de dispersión más limpia e interpretaciones de PC más puras, y la sección 18.1 conserva la evidencia de cómo lucía el análisis con las 14 variables.
 
 ```{r datos-oficiales}
-datos_t <- datos_transformados   # 13 variables originales + Category.Two.Defects transformada (lambda = -0.217)
+# Análisis principal: 11 variables (sin Category.One.Defects, Category.Two.Defects, Moisture)
+# Razón: las tres variables tienen inflación de ceros que no se corrige con transformaciones de potencia
+# (ver sección 3.2) y el análisis de sensibilidad (sección 18.1) muestra que su exclusión
+# no cambia la interpretación del eje principal de calidad sensorial.
+vars_11 <- setdiff(names(datos_transformados),
+                   c("Category.One.Defects", "Category.Two.Defects", "Moisture"))
+datos_t <- datos_transformados[, vars_11]   # 11 variables: 10 sensoriales + altitude_mean_meters
 ```
+
+```{r antes-despues-comparacion, fig.width=12, fig.height=5, fig.cap="Comparación del primer plano PCA: 14 variables (izquierda) vs. 11 variables sin problemas de ceros (derecha)"}
+pca_14 <- prcomp(datos_transformados, center = TRUE, scale. = TRUE)
+pca_11 <- prcomp(datos_t,            center = TRUE, scale. = TRUE)
+
+var14 <- round(summary(pca_14)$importance[2, 1:2] * 100, 1)
+var11 <- round(summary(pca_11)$importance[2, 1:2] * 100, 1)
+
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+biplot(pca_14, scale = 0, cex = 0.45, col = c("gray70", "firebrick"),
+       xlab = paste0("PC1 (", var14[1], " %)"),
+       ylab = paste0("PC2 (", var14[2], " %)"),
+       main = "14 variables (con Cat1/Cat2/Moisture)")
+biplot(pca_11, scale = 0, cex = 0.45, col = c("gray70", "steelblue"),
+       xlab = paste0("PC1 (", var11[1], " %)"),
+       ylab = paste0("PC2 (", var11[2], " %)"),
+       main = "11 variables (análisis principal)")
+```
+
+El biplot de la derecha muestra la nube de dispersión limpia: desaparecen los puntos extremos que en el modelo de 14 variables correspondían a lotes con muchos defectos físicos (Cat1 = 31) y a los lotes con Moisture = 0. La varianza explicada por PC1 aumenta porque ya no se "comparte" con los ejes de defectos y humedad.
 
 ```{r estandarizacion-explicita}
 Z <- scale(datos_t)   # cada columna queda con media 0 y varianza 1: Z = D^(-1/2)(X - 1 x_barra^T)
@@ -1048,54 +1074,51 @@ Contenido de referencia para preparar las diapositivas (ver estructura sugerida 
 
 ---
 
-# 18.1 Análisis de sensibilidad: PCA sin variables problemáticas
+# 18.1 Evidencia: PCA con las 14 variables originales (antes vs. después)
 
-Las variables `Category.One.Defects`, `Category.Two.Defects` y `Moisture` presentan dos problemas que complican la interpretación del PCA principal:
+Esta sección documenta el PCA con las 14 variables —incluyendo `Category.One.Defects`, `Category.Two.Defects` y `Moisture`— para mostrar qué cambió al excluirlas del análisis principal. El análisis principal (secciones 5–17) usa las 11 variables restantes.
 
-- **Inflación de ceros:** entre el 89 % y el 98 % de los lotes registran valor 0 en los tres campos, lo que genera distribuciones bimodales que no se normalizan con ninguna transformación estándar.
-- **Posible codificación de faltantes:** los 174 lotes con `Moisture = 0` corresponden, con alta probabilidad, a observaciones sin registro y no a lotes físicamente secos.
+**Problemas observados con 14 variables:**
 
-Para evaluar si estas variables distorsionan la estructura del PCA sobre los atributos sensoriales y la altitud, se repite el análisis sobre las 11 variables restantes.
+- **Inflación de ceros:** entre el 89 % y el 98 % de los lotes registran valor 0 en los tres campos — distribuciones bimodales que no se normalizan con ninguna transformación de potencia (sección 3.2).
+- **Posible codificación de faltantes:** los 174 lotes con `Moisture = 0` forman un subgrupo separado en UMAP (sección 13), indicando faltantes codificados como 0, no café genuinamente seco.
+- **Atípicos extremos:** los lotes con Cat.One.Defects = 31 y Cat.Two.Defects = 45–47 dominan PC3 en el modelo de 14 variables y dificultan la interpretación del resto de la nube.
 
-```{r sensibilidad-pca-setup}
-vars_sensible <- setdiff(names(datos_t),
-                         c("Category.One.Defects",
-                           "Category.Two.Defects",
-                           "Moisture"))
-
-datos_sens <- datos_t[, vars_sensible]
-pca_sens   <- prcomp(datos_sens, center = TRUE, scale. = TRUE)
-
-var_prop_s  <- pca_sens$sdev^2 / sum(pca_sens$sdev^2)
-var_acum_s  <- cumsum(var_prop_s)
+```{r sensibilidad-14vars-setup}
+pca_14_ref  <- prcomp(datos_transformados, center = TRUE, scale. = TRUE)
+var_prop_14 <- pca_14_ref$sdev^2 / sum(pca_14_ref$sdev^2)
+var_acum_14 <- cumsum(var_prop_14)
 
 data.frame(
-  PC        = paste0("PC", seq_along(var_prop_s)),
-  Var_prop  = round(var_prop_s, 3),
-  Var_acum  = round(var_acum_s, 3)
+  PC       = paste0("PC", seq_along(var_prop_14)),
+  Var_prop = round(var_prop_14, 3),
+  Var_acum = round(var_acum_14, 3)
 )
 ```
 
-```{r sensibilidad-pca-scree, fig.width=7, fig.height=4, fig.cap="Varianza explicada por componente — modelo sin variables problemáticas"}
-barplot(var_prop_s * 100,
-        names.arg = paste0("PC", seq_along(var_prop_s)),
-        col  = "steelblue",
-        ylab = "Varianza explicada (%)",
-        main = "Scree plot — PCA sin Cat1/Cat2/Moisture",
-        las  = 1)
-abline(h = 100 / length(var_prop_s), lty = 2, col = "red")
+```{r sensibilidad-scree-comparacion, fig.width=12, fig.height=4, fig.cap="Scree plot: 14 variables (antes, izquierda) vs. 11 variables — análisis principal (después, derecha)"}
+var_prop_11 <- pca$sdev^2 / sum(pca$sdev^2)
+
+par(mfrow = c(1, 2))
+barplot(var_prop_14 * 100,
+        names.arg = paste0("PC", seq_along(var_prop_14)),
+        col = "salmon", ylab = "Varianza explicada (%)",
+        main = "ANTES — 14 variables", las = 2, cex.names = 0.8)
+abline(h = 100/14, lty = 2, col = "red")
+
+barplot(var_prop_11 * 100,
+        names.arg = paste0("PC", seq_along(var_prop_11)),
+        col = "steelblue", ylab = "Varianza explicada (%)",
+        main = "DESPUES — 11 variables (analisis principal)", las = 2, cex.names = 0.8)
+abline(h = 100/11, lty = 2, col = "red")
 ```
 
-```{r sensibilidad-pca-biplot, fig.width=8, fig.height=7, fig.cap="Biplot PCA sensible — PC1 vs PC2"}
-biplot(pca_sens, scale = 0, cex = 0.5,
-       col  = c("gray60", "firebrick"),
-       main = "PCA sin variables problemáticas — PC1 vs PC2")
+```{r sensibilidad-biplot-14, fig.width=8, fig.height=7, fig.cap="Biplot ANTES (14 variables): puntos extremos de defectos dominan los ejes secundarios"}
+biplot(pca_14_ref, scale = 0, cex = 0.45, col = c("gray60", "firebrick"),
+       main = "ANTES — PCA 14 variables")
 ```
 
-**Resultados del modelo sensible:**
-PC1 retiene una proporción alta de varianza (`r round(var_prop_s[1]*100,1)` %) y las cargas mantienen la misma estructura que en el modelo completo: los siete atributos sensoriales de intensidad tienen cargas similares y del mismo signo. El patrón de dispersión en el biplot es más limpio — desaparecen los puntos extremos que correspondían a lotes con muchos defectos físicos, confirmando que esos atípicos eran empujados hacia la periferia precisamente por `Category.One.Defects` y `Category.Two.Defects`.
-
-La interpretación del eje PC1 como **ranking de calidad sensorial general** es robusta: persiste con o sin las tres variables problemáticas. Dado que el objetivo del análisis es entender la variabilidad entre lotes de café arábica en sus atributos sensoriales, el PCA completo (con las 14 variables y `Category.Two.Defects` corregida por Yeo-Johnson) es preferible porque incorpora información sobre defectos físicos. Sin embargo, si el usuario final necesita un modelo sin sesgos por datos faltantes, el modelo de 11 variables es más confiable.
+**Comparacion:** con 14 variables PC1 explica `r round(var_prop_14[1]*100,1)` % de la varianza; con 11 variables (analisis principal) explica `r round(var_prop_11[1]*100,1)` %. La interpretacion de PC1 como eje de calidad sensorial es robusta en ambos modelos. Al excluir las tres variables, la nube de puntos es mas limpia y los ejes secundarios reflejan mejor los matices entre variables sensoriales (Sweetness/Uniformity vs. Flavor/Acidity).
 
 # 19. Pregunta final
 
